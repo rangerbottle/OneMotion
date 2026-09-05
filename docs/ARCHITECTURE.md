@@ -1,4 +1,4 @@
-# OnMotion — Architecture
+# OneMotion — Architecture
 
 Version: 0.2 · Date: 2026-09-05 · Companion to [PRD.md](PRD.md)
 
@@ -33,7 +33,7 @@ Two pipelines share one pose + metrics core:
 | --- | --- | --- |
 | Player app | Next.js 16 (App Router, TypeScript, Tailwind) | Web-first; camera via getUserMedia; easy mobile wrap later |
 | Backend | FastAPI (Python 3.13, uv) | Python owns the CV/ML ecosystem; async upload handling |
-| Server pose (working dev) | Ultralytics YOLO-pose (yolo11n-pose) | Pure CPU, native COCO-17, zero config. Default `ONMOTION_POSE_BACKEND=yolo` |
+| Server pose (working dev) | Ultralytics YOLO-pose (yolo11n-pose) | Pure CPU, native COCO-17, zero config. Default `ONEMOTION_POSE_BACKEND=yolo` |
 | ~~Dev/fallback pose~~ | ~~MediaPipe BlazePose (Python)~~ | Rejected: mediapipe 1.x crashes on this macOS host (graph initializes Metal even with CPU delegate). `pose/mediapipe_backend.py` kept for browser parity only |
 | Comparison | Phase anchors + normalized phase progress | Shots differ in speed; explicit anchors preserve timing semantics and avoid hiding tempo errors |
 | Storage (MVP) | Local filesystem + JSON artifacts | Zero infra; S3/Postgres when sessions/users land |
@@ -100,7 +100,7 @@ Feedback engine is **rule-based** (v1): an ordered rule table maps delta pattern
 | `GET /api/v1/analysis/{id}/video` | TTL-bound original player video | implemented |
 | `DELETE /api/v1/analysis/{id}` | remove result, keypoints, and uploaded media | implemented |
 
-Request/response models live in `backend/app/schemas/`. Errors use RFC-7807-ish `{error: {code, message, details}}`.
+Request/response models live in `backend/app/schemas/`. Implemented analysis errors use HTTP status plus `{detail: string}`; the pose stub uses `{error: {code, message}}`. The web client normalizes both and preserves status for recovery.
 
 ## 7. Frontend structure
 
@@ -134,14 +134,14 @@ The active v3 benchmark and reference video are required for readiness and analy
 
 ## 9. Configuration & secrets
 
-`backend/app/core/config.py` reads `ONMOTION_DATA_DIR`, `ONMOTION_POSE_BACKEND`, `ONMOTION_MODEL_PATH`, `ONMOTION_ARTIFACT_MANIFEST`, `ONMOTION_MEDIA_TTL_HOURS`, `ONMOTION_ALLOWED_ORIGINS`, `ONMOTION_WARM_MODEL`, and the optional Roboflow key. Frontend reads `NEXT_PUBLIC_API_BASE` in the browser and `ONMOTION_API_BASE` for server rendering. No secrets are committed.
+`backend/app/core/config.py` reads `ONEMOTION_DATA_DIR`, `ONEMOTION_POSE_BACKEND`, `ONEMOTION_MODEL_PATH`, `ONEMOTION_ARTIFACT_MANIFEST`, `ONEMOTION_MEDIA_TTL_HOURS`, `ONEMOTION_ALLOWED_ORIGINS`, `ONEMOTION_WARM_MODEL`, and the optional Roboflow key. Frontend reads `NEXT_PUBLIC_API_BASE` in the browser and `ONEMOTION_API_BASE` for server rendering. No secrets are committed.
 
 The Compose stack mounts `data/` read/write and `models/` read-only, starts the API only after artifact verification, and publishes only the Nginx gateway. The API and web containers run as an unprivileged user.
 
 ## 10. Testing strategy
 
 - Backend: pytest covers API behavior, v3 retirement semantics, phase/comparison evidence, per-frame biomechanics, and capture-quality bounds; a real-clip endpoint round trip validates analysis, replay, media range requests, and cleanup.
-- Frontend: ESLint plus a full Next.js production type/build check.
+- Frontend: ESLint, generated Next.js route types, TypeScript, Playwright browser regressions, and a production container build.
 
 ## 11. Roadmap
 
@@ -167,7 +167,7 @@ The Compose stack mounts `data/` read/write and `models/` read-only, starts the 
   keypoint coverage, benchmark sample count, IQR, delta percentage, and robust
   z-score where possible. Unreliable values remain visible with a reason but do
   not affect scores or coaching suggestions.
-- `GET /api/v1/pose/estimate` remains a 501 stub — analysis runs pose inline.
+- `POST /api/v1/pose/estimate` remains a 501 stub — analysis runs pose inline.
 
 ### View-normalization experiment gate
 
@@ -191,3 +191,23 @@ This can graduate from research only if an implementation:
 Until then, capture-quality guidance is the accurate product behavior: detect
 whether a clip is likely usable for 2D side-view comparison, explain the limits,
 and ask for a better recording when necessary.
+
+### Reliability and storage updates (2026-09-05)
+
+Measurement evidence is persisted separately from template-dependent deltas.
+Legacy reports retain their existing reliability decisions when compared again.
+Tempo depends on load, lift, and release; benchmark aggregation applies the same
+checks as player scoring. Frame velocity requires a reliable body scale, adjacent
+wrist samples and strictly increasing local timestamps.
+
+Uploads are preflighted and YOLO checks resource limits while decoding. Analysis
+creation rolls back its files on failure, writes use unique atomic temporaries,
+and fixed advisory-lock stripes serialize migration, deletion, and retention
+across threads/processes on the local filesystem. Old orphan files are swept;
+active analysis work is protected by the same lock. Video and skeleton access
+check the deadline directly, including legacy inline skeletons.
+
+The template registry preserves artifact timing/source metadata. New benchmark
+builds record source/model/algorithm hashes. Explicit release pinning is separate
+from numerical reproducibility because creation timestamps change file hashes.
+See `docs/EVALUATION.md` for the evaluation contract and remaining human labels.

@@ -30,9 +30,10 @@ def main() -> None:
         help="build from this exact clip (repeatable); overrides directory scanning",
     )
     parser.add_argument("--out", type=Path, default=settings.benchmark_path)
+    parser.add_argument("--input-manifest", type=Path, help="verified source clips, hashes, crop interval and playback speed")
     args = parser.parse_args()
 
-    build_benchmark(args.clips_dir, args.out, clips=args.clip)
+    build_benchmark(args.clips_dir, args.out, clips=args.clip, input_manifest=args.input_manifest)
 
 
 if __name__ == "__main__":

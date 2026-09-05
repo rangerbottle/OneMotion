@@ -91,6 +91,7 @@ class AnalysisResult(BaseModel):
     phases: list[PhaseSegment]
     metrics: list[MetricValue]
     feedback: list[FeedbackItem]  # top 3, priority ordered
+    measurement_evidence: dict[str, dict[str, float | bool | str | None]] = Field(default_factory=dict)
     # Skeleton replay (FR-4.2): player sequence + benchmark canonical sequence.
     # Optional so analyses persisted before replay was added still load.
     player_sequence: ShotSequence | None = None

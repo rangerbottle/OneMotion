@@ -1,0 +1,1790 @@
+{
+  "analysis_id": "demo",
+  "template_id": "curry_v3",
+  "timing_mode": "realtime",
+  "timing_reliable": true,
+  "player_sequence": {
+    "clip_id": "synthetic",
+    "fps": 10,
+    "width": 160,
+    "height": 90,
+    "frames": [
+      {
+        "frame_idx": 0,
+        "t_ms": 0,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 1,
+        "t_ms": 100,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 2,
+        "t_ms": 200,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 3,
+        "t_ms": 300,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 4,
+        "t_ms": 400,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 5,
+        "t_ms": 500,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      }
+    ]
+  },
+  "template_sequence": {
+    "clip_id": "synthetic",
+    "fps": 10,
+    "width": 160,
+    "height": 90,
+    "frames": [
+      {
+        "frame_idx": 0,
+        "t_ms": 0,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 1,
+        "t_ms": 100,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 2,
+        "t_ms": 200,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 3,
+        "t_ms": 300,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 4,
+        "t_ms": 400,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "frame_idx": 5,
+        "t_ms": 500,
+        "keypoints": [
+          {
+            "name": "right_shoulder",
+            "x": 0.5,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_elbow",
+            "x": 0.5,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_wrist",
+            "x": 0.7,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_shoulder",
+            "x": 0.4,
+            "y": 0.2,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_elbow",
+            "x": 0.4,
+            "y": 0.4,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_wrist",
+            "x": 0.2,
+            "y": 0.6,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_hip",
+            "x": 0.4,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_hip",
+            "x": 0.5,
+            "y": 0.55,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_knee",
+            "x": 0.4,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_knee",
+            "x": 0.5,
+            "y": 0.72,
+            "confidence": 0.95
+          },
+          {
+            "name": "left_ankle",
+            "x": 0.4,
+            "y": 0.9,
+            "confidence": 0.95
+          },
+          {
+            "name": "right_ankle",
+            "x": 0.5,
+            "y": 0.9,
+            "confidence": 0.95
+          }
+        ]
+      }
+    ]
+  },
+  "player_phases": [
+    {
+      "phase": "dip",
+      "start_frame": 0,
+      "end_frame": 0,
+      "start_ms": 0,
+      "end_ms": 0,
+      "anchor_frame": 0,
+      "anchor_ms": 0,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "load",
+      "start_frame": 1,
+      "end_frame": 1,
+      "start_ms": 100,
+      "end_ms": 100,
+      "anchor_frame": 1,
+      "anchor_ms": 100,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "lift",
+      "start_frame": 2,
+      "end_frame": 2,
+      "start_ms": 200,
+      "end_ms": 200,
+      "anchor_frame": 2,
+      "anchor_ms": 200,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "release",
+      "start_frame": 3,
+      "end_frame": 3,
+      "start_ms": 300,
+      "end_ms": 300,
+      "anchor_frame": 3,
+      "anchor_ms": 300,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "follow_through",
+      "start_frame": 4,
+      "end_frame": 4,
+      "start_ms": 400,
+      "end_ms": 400,
+      "anchor_frame": 4,
+      "anchor_ms": 400,
+      "degraded": false,
+      "censored": false
+    }
+  ],
+  "template_phases": [
+    {
+      "phase": "dip",
+      "start_frame": 0,
+      "end_frame": 0,
+      "start_ms": 0,
+      "end_ms": 0,
+      "anchor_frame": 0,
+      "anchor_ms": 0,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "load",
+      "start_frame": 1,
+      "end_frame": 1,
+      "start_ms": 100,
+      "end_ms": 100,
+      "anchor_frame": 1,
+      "anchor_ms": 100,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "lift",
+      "start_frame": 2,
+      "end_frame": 2,
+      "start_ms": 200,
+      "end_ms": 200,
+      "anchor_frame": 2,
+      "anchor_ms": 200,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "release",
+      "start_frame": 3,
+      "end_frame": 3,
+      "start_ms": 300,
+      "end_ms": 300,
+      "anchor_frame": 3,
+      "anchor_ms": 300,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "follow_through",
+      "start_frame": 4,
+      "end_frame": 4,
+      "start_ms": 400,
+      "end_ms": 400,
+      "anchor_frame": 4,
+      "anchor_ms": 400,
+      "degraded": false,
+      "censored": false
+    }
+  ],
+  "player_video_url": "/api/v1/analysis/demo/video",
+  "template_video_url": "/api/v1/templates/curry_v3/video",
+  "player_window": {
+    "start_ms": 0,
+    "end_ms": 400,
+    "duration_ms": 400,
+    "fps": 10,
+    "dip_anchor_ms": 0,
+    "release_anchor_ms": 300
+  },
+  "template_window": {
+    "start_ms": 0,
+    "end_ms": 400,
+    "duration_ms": 400,
+    "fps": 10,
+    "dip_anchor_ms": 0,
+    "release_anchor_ms": 300
+  },
+  "sync": {
+    "available_modes": [
+      "independent",
+      "realtime_locked"
+    ],
+    "default_mode": "realtime_locked",
+    "default_anchor": "release",
+    "anchors": [
+      {
+        "name": "dip",
+        "player_ms": 0,
+        "template_ms": 0,
+        "confidence": 1
+      },
+      {
+        "name": "release",
+        "player_ms": 300,
+        "template_ms": 300,
+        "confidence": 1
+      }
+    ],
+    "unavailable_reason": null
+  },
+  "biomechanics_version": "synthetic-test",
+  "player_biomechanics": [
+    {
+      "frame_idx": 0,
+      "t_ms": 0,
+      "phase": "dip",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 1,
+      "t_ms": 100,
+      "phase": "load",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 2,
+      "t_ms": 200,
+      "phase": "lift",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 3,
+      "t_ms": 300,
+      "phase": "release",
+      "shooting_side": "right",
+      "is_release_frame": true,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 4,
+      "t_ms": 400,
+      "phase": "follow_through",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 5,
+      "t_ms": 500,
+      "phase": "follow_through",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    }
+  ],
+  "template_biomechanics": [
+    {
+      "frame_idx": 0,
+      "t_ms": 0,
+      "phase": "dip",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 1,
+      "t_ms": 100,
+      "phase": "load",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 2,
+      "t_ms": 200,
+      "phase": "lift",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 3,
+      "t_ms": 300,
+      "phase": "release",
+      "shooting_side": "right",
+      "is_release_frame": true,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 4,
+      "t_ms": 400,
+      "phase": "follow_through",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "frame_idx": 5,
+      "t_ms": 500,
+      "phase": "follow_through",
+      "shooting_side": "right",
+      "is_release_frame": false,
+      "elbow_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "left_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "right_knee_flexion_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "forearm_elevation_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "release_angle_proxy_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "trunk_lean_deg": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      },
+      "wrist_vertical_velocity_height_s": {
+        "value": 90,
+        "confidence": 0.95,
+        "reliable": true,
+        "interpolated": false,
+        "unavailable_reason": null
+      }
+    }
+  ]
+}

@@ -1,9 +1,9 @@
-/** Typed client for the OnMotion API (docs/ARCHITECTURE.md §6). */
+/** Typed client for the OneMotion API (docs/ARCHITECTURE.md §6). */
 
 const PUBLIC_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 export const API_BASE =
   typeof window === "undefined"
-    ? process.env.ONMOTION_API_BASE ?? PUBLIC_API_BASE
+    ? process.env.ONEMOTION_API_BASE ?? PUBLIC_API_BASE
     : PUBLIC_API_BASE;
 
 export function apiUrl(path: string | null): string | null {
@@ -187,20 +187,39 @@ export async function health(): Promise<Response> {
   return fetch(`${API_BASE}/health`);
 }
 
-export async function submitAnalysis(file: File): Promise<Response> {
+export async function submitAnalysis(file: File, signal?: AbortSignal): Promise<Response> {
   const form = new FormData();
   form.append("video", file);
-  return fetch(`${API_BASE}/api/v1/analysis`, { method: "POST", body: form });
+  return fetch(`${API_BASE}/api/v1/analysis`, { method: "POST", body: form, signal });
 }
 
 export async function getAnalysis(id: string): Promise<Response> {
   return fetch(`${API_BASE}/api/v1/analysis/${id}`, { cache: "no-store" });
 }
 
-export async function getReplay(id: string): Promise<ReplayPayload> {
+export async function getReplay(id: string, signal?: AbortSignal): Promise<ReplayPayload> {
   const response = await fetch(`${API_BASE}/api/v1/analysis/${id}/replay`, {
+    signal,
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`replay fetch failed: ${response.status}`);
+  if (!response.ok) throw await responseError(response);
   return response.json();
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
+}
+
+export async function responseError(response: Response): Promise<ApiError> {
+  const body = await response.json().catch(() => null);
+  const detail = body?.detail ?? body?.error?.message;
+  const defaults: Record<number, string> = {
+    404: "This analysis could not be found. Record or upload a new shot.",
+    410: "This replay has expired. Your report is still available; upload a new shot for video replay.",
+    429: "The analysis service is busy. Try again shortly.",
+    503: "The analysis service is temporarily unavailable. Please try again later.",
+  };
+  return new ApiError(response.status, defaults[response.status] ??
+    (typeof detail === "string" ? detail : `The request failed (${response.status}). Please try again.`));
 }

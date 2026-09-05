@@ -107,8 +107,8 @@ def shot_tempo_s(seq: ShotSequence, phases: list[PhaseSegment]) -> float:
     """Dip bottom (load) → release, seconds. The one-motion signature."""
     load_phase = phase_of(phases, "load")
     release_phase = phase_of(phases, "release")
-    load = load_phase.anchor_frame or load_phase.start_frame
-    release = release_phase.anchor_frame or release_phase.start_frame
+    load = load_phase.anchor_frame if load_phase.anchor_frame is not None else load_phase.start_frame
+    release = release_phase.anchor_frame if release_phase.anchor_frame is not None else release_phase.start_frame
     return float((seq.frames[release].t_ms - seq.frames[load].t_ms) / 1000.0)
 
 
@@ -201,54 +201,52 @@ def measurement_evidence(
 ) -> dict[str, dict[str, float | bool | str | None]]:
     """Return confidence and coverage behind every metric measurement."""
     side = shooting_side(seq)
-    requirements: dict[str, tuple[str, list[str]]] = {
-        "release_angle_deg": ("release", [f"{side}_elbow", f"{side}_wrist"]),
-        "release_height_ratio": (
-            "release",
-            [f"{side}_wrist", "left_eye", "right_eye", "left_ankle", "right_ankle"],
-        ),
-        "shot_tempo_s": ("lift", [f"{side}_wrist"]),
-        "knee_flexion_deg": (
-            "load",
-            [f"{s}_{p}" for s in ("left", "right") for p in ("hip", "knee", "ankle")],
-        ),
-        "elbow_angle_at_release_deg": (
-            "release",
-            [f"{side}_shoulder", f"{side}_elbow", f"{side}_wrist"],
-        ),
-        "set_point_ratio": ("lift", [f"{side}_wrist", f"{side}_shoulder"]),
-        "hip_shoulder_offset_ratio": (
-            "release",
-            ["left_shoulder", "right_shoulder", "left_hip", "right_hip"],
-        ),
-        "follow_through_hold_s": (
-            "follow_through",
-            [f"{side}_elbow", f"{side}_wrist"],
-        ),
+    arm = [f"{side}_{joint}" for joint in ("shoulder", "elbow", "wrist")]
+    torso = ["left_shoulder", "right_shoulder", "left_hip", "right_hip"]
+    # Every dependent phase is gated separately: a missing anchor cannot be
+    # averaged away by a long, well-tracked lift segment.
+    requirements: dict[str, list[tuple[str, list[str]]]] = {
+        "release_angle_deg": [("release", arm)],
+        "release_height_ratio": [
+            ("dip", ["left_ankle", "right_ankle"]),
+            ("release", [f"{side}_wrist"]),
+        ],
+        "shot_tempo_s": [("load", [f"{side}_wrist"]), ("lift", [f"{side}_wrist"]), ("release", arm)],
+        "knee_flexion_deg": [("load", [f"{s}_{p}" for s in ("left", "right") for p in ("hip", "knee", "ankle")])],
+        "elbow_angle_at_release_deg": [("release", arm)],
+        "set_point_ratio": [("lift", [f"{side}_wrist", *torso])],
+        "hip_shoulder_offset_ratio": [("release", torso)],
+        "follow_through_hold_s": [("release", arm), ("follow_through", [f"{side}_elbow", f"{side}_wrist"])],
     }
     evidence: dict[str, dict[str, float | bool | str | None]] = {}
-    for name, (phase_name, names) in requirements.items():
-        phase = phase_of(phases, phase_name)
-        samples = [
-            raw_conf(seq, frame_id, keypoint)
-            for frame_id in range(phase.start_frame, phase.end_frame + 1)
-            for keypoint in names
-        ]
-        coverage = sum(value >= CONF_MIN for value in samples) / max(len(samples), 1)
-        confidence = float(np.mean(samples)) if samples else 0.0
-        reliable = coverage >= 0.75 and not phase.degraded and not phase.censored
-        reason = None
-        if phase.censored:
-            reason = "phase extends beyond the available clip"
-        elif phase.degraded:
-            reason = "phase contains missing pose points"
-        elif coverage < 0.75:
-            reason = f"only {coverage:.0%} of required keypoints are visible"
+    for name, dependencies in requirements.items():
+        coverages, confidences = [], []
+        reasons = []
+        for phase_name, names in dependencies:
+            phase = phase_of(phases, phase_name)
+            samples = [raw_conf(seq, i, kp) for i in range(phase.start_frame, phase.end_frame + 1) for kp in names]
+            coverage = sum(v >= CONF_MIN for v in samples) / max(len(samples), 1)
+            confidence = float(np.mean(samples)) if samples else 0.0
+            anchor = phase.anchor_frame if phase.anchor_frame is not None else phase.start_frame
+            anchor_confidence = min((raw_conf(seq, anchor, kp) for kp in names), default=0.0)
+            coverages.append(coverage)
+            confidences.append(min(confidence, anchor_confidence))
+            if phase.censored:
+                reasons.append(f"{phase_name} phase extends beyond the available clip")
+            elif phase.degraded:
+                reasons.append(f"{phase_name} phase contains missing pose points")
+            elif coverage < 0.75 or anchor_confidence < CONF_MIN:
+                reasons.append(f"{phase_name} required joints or anchor are not reliably visible")
+        if name == "release_height_ratio":
+            try:
+                _standing_height_px(seq, phases)
+            except UnreliableData as exc:
+                reasons.append(str(exc))
         evidence[name] = {
-            "confidence": round(confidence, 3),
-            "coverage": round(coverage, 3),
-            "reliable": reliable,
-            "reason": reason,
+            "confidence": round(min(confidences, default=0.0), 3),
+            "coverage": round(min(coverages, default=0.0), 3),
+            "reliable": not reasons,
+            "reason": "; ".join(reasons) or None,
         }
     return evidence
 

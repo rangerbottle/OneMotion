@@ -1,7 +1,7 @@
 """RF-DETR keypoint backend via Roboflow `inference` — accuracy path.
 
 Implementation lands in M2 (docs/ARCHITECTURE.md §11). Requires
-ONMOTION_POSE_BACKEND=rfdetr and ONMOTION_RF_API_KEY. Output is adapted to
+ONEMOTION_POSE_BACKEND=rfdetr and ONEMOTION_RF_API_KEY. Output is adapted to
 the canonical COCO-17 schema before leaving this module.
 """
 

@@ -77,20 +77,26 @@ def compute_frame_biomechanics(
         )
     }
 
-    # Normalize velocity by a robust body-height proxy in pixels.
-    height_samples = []
+    # Velocity uses raw adjacent samples; interpolated neighbors must not be
+    # advertised as measurements. The body scale has its own confidence gate.
+    scale_names = ("left_ankle", "right_ankle", "left_shoulder", "right_shoulder")
+    raw = {name: series(seq, name, smooth_window=1) for name in (*scale_names, f"{side}_wrist")}
+    height_samples, scale_confidences = [], []
     for i in range(len(seq.frames)):
-        ankle = midpoint(trajectories["left_ankle"][i], trajectories["right_ankle"][i])
-        shoulder = midpoint(
-            trajectories["left_shoulder"][i], trajectories["right_shoulder"][i]
-        )
-        height_samples.append(abs(float(ankle[1] - shoulder[1])) * 1.45)
-    body_height = max(float(np.median(height_samples)), 1.0)
-    wrist_y = trajectories[f"{side}_wrist"][:, 1]
+        conf = min(raw_conf(seq, i, name) for name in scale_names)
+        if conf < CONF_MIN:
+            continue
+        ankle = midpoint(raw["left_ankle"][i], raw["right_ankle"][i])
+        shoulder = midpoint(raw["left_shoulder"][i], raw["right_shoulder"][i])
+        height = abs(float(ankle[1] - shoulder[1])) * 1.45
+        if height > 1:
+            height_samples.append(height)
+            scale_confidences.append(conf)
+    enough_scale = len(height_samples) >= max(2, math.ceil(len(seq.frames) * 0.75))
+    body_height = float(np.median(height_samples)) if enough_scale else None
+    scale_confidence = min(scale_confidences, default=0.0) if enough_scale else 0.0
+    wrist_y = raw[f"{side}_wrist"][:, 1]
     times = np.array([frame.t_ms for frame in seq.frames], dtype=float) / 1000.0
-    velocity = np.zeros(len(seq.frames), dtype=float)
-    if len(seq.frames) > 1:
-        velocity = -np.gradient(wrist_y, times, edge_order=1) / body_height
 
     output: list[BiomechanicsFrame] = []
     for i, frame in enumerate(seq.frames):
@@ -129,8 +135,16 @@ def compute_frame_biomechanics(
         )
         trunk = _derived(trunk_value, confidences(*trunk_names))
 
-        wrist_conf = raw_conf(seq, i, f"{side}_wrist")
-        wrist_velocity = _derived(float(velocity[i]), [wrist_conf])
+        lo, hi = max(0, i - 1), min(len(seq.frames) - 1, i + 1)
+        neighbor_confidences = [raw_conf(seq, j, f"{side}_wrist") for j in range(lo, hi + 1)]
+        valid_times = hi > lo and all(times[j + 1] > times[j] for j in range(lo, hi))
+        velocity = None
+        if body_height is not None and valid_times:
+            velocity = -float(np.gradient(wrist_y[lo:hi + 1], times[lo:hi + 1])[i - lo]) / body_height
+        wrist_velocity = _derived(
+            velocity, [scale_confidence, *neighbor_confidences],
+            reason="body scale, adjacent wrist samples, or timestamps are unreliable",
+        )
         is_release = i == release_frame
         release_value = (
             forearm

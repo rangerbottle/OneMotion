@@ -21,6 +21,9 @@ from app.benchmarks.templates import (
     template_video_path,
 )
 from app.core.config import Settings, get_settings
+from app.core.storage import analysis_lock, atomic_write as _atomic_write
+from app.core.retention import media_expired
+from app.core.video import AnalysisBusy, MAX_CLIP_DURATION_MS, inference_slot, validate_video
 from app.pose import get_backend
 from app.schemas.analysis import (
     AnalysisQuality,
@@ -40,7 +43,6 @@ router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm"}
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-MAX_CLIP_DURATION_MS = 12_000
 ANALYSIS_ID_RE = re.compile(r"^[a-f0-9]{12,32}$")
 
 Cfg = Annotated[Settings, Depends(get_settings)]
@@ -61,13 +63,10 @@ def _load_result(cfg: Settings, analysis_id: str) -> AnalysisResult:
     path = _result_path(cfg, analysis_id)
     if not path.is_file():
         raise HTTPException(404, f"no analysis '{analysis_id}'")
-    return AnalysisResult.model_validate(json.loads(path.read_text()))
-
-
-def _atomic_write(path: Path, content: str) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(content)
-    temporary.replace(path)
+    result = AnalysisResult.model_validate(json.loads(path.read_text()))
+    if result.media_expires_at is None:
+        result.media_expires_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc) + timedelta(hours=cfg.media_ttl_hours)
+    return result
 
 
 def _resolve_template(cfg: Settings, template_id: str | None):
@@ -144,6 +143,7 @@ def _compare_result(
             "timing_score": compare.similarity_score(deltas, "timing"),
             "quality": quality,
             "metrics": deltas,
+            "measurement_evidence": evidence,
             "feedback": feedback.rank(deltas),
             "benchmark_sequence": None,
             "benchmark_phases": template.canonical_phases,
@@ -170,54 +170,74 @@ def create_analysis(
     _ensure_dirs(cfg)
     analysis_id = uuid.uuid4().hex
     video_path = cfg.uploads_dir / f"{analysis_id}{ext}"
-    written = 0
-    try:
-        with video_path.open("wb") as target:
-            while chunk := video.file.read(1024 * 1024):
-                written += len(chunk)
-                if written > MAX_UPLOAD_BYTES:
-                    raise HTTPException(413, "clip exceeds 50 MB")
-                target.write(chunk)
-    except Exception:
-        video_path.unlink(missing_ok=True)
-        raise
-
-    try:
-        sequence = get_backend(cfg).estimate_video(video_path)
-        if sequence.frames[-1].t_ms - sequence.frames[0].t_ms > MAX_CLIP_DURATION_MS:
-            raise ValueError("clip exceeds 12 seconds — upload one shot only")
-        phases = segment(sequence)
-        player_metrics = compute_all(sequence, phases)
-        evidence = measurement_evidence(sequence, phases)
-        capture_quality = assess_capture(sequence, phases)
-    except (ValueError, RuntimeError) as exc:
-        video_path.unlink(missing_ok=True)
-        raise HTTPException(422, str(exc))
-
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=cfg.media_ttl_hours)
-    base = AnalysisResult(
-        analysis_id=analysis_id,
-        benchmark_version=template.version,
-        similarity_score=None,
-        phases=phases,
-        metrics=[],
-        feedback=[],
-        capture_quality=capture_quality,
-        player_video_url=f"/api/v1/analysis/{analysis_id}/video",
-        template_video_url=None,
-        media_expires_at=expires_at,
-    )
-    result = _compare_result(cfg, base, template, player_metrics, evidence)
-    _atomic_write(
-        cfg.keypoints_dir / f"{analysis_id}.json", sequence.model_dump_json()
-    )
-    _atomic_write(_result_path(cfg, analysis_id), result.model_dump_json(indent=2))
-    return result
+    result_path = _result_path(cfg, analysis_id)
+    keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
+    # Hold the same lock used by cleanup until the report commits or rollback completes.
+    with analysis_lock(cfg.data_dir, analysis_id):
+        try:
+            with inference_slot(cfg.analysis_concurrency):
+                written = 0
+                with video_path.open("wb") as target:
+                    while chunk := video.file.read(1024 * 1024):
+                        written += len(chunk)
+                        if written > MAX_UPLOAD_BYTES:
+                            raise HTTPException(413, "clip exceeds 50 MB")
+                        target.write(chunk)
+                validate_video(video_path)
+                sequence = get_backend(cfg).estimate_video(video_path)
+                if not sequence.frames:
+                    raise ValueError("video contains no decoded frames")
+                if sequence.frames[-1].t_ms - sequence.frames[0].t_ms > MAX_CLIP_DURATION_MS:
+                    raise ValueError("clip exceeds 12 seconds — upload one shot only")
+                phases = segment(sequence)
+                player_metrics = compute_all(sequence, phases)
+                evidence = measurement_evidence(sequence, phases)
+                capture_quality = assess_capture(sequence, phases)
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=cfg.media_ttl_hours)
+                base = AnalysisResult(
+                    analysis_id=analysis_id,
+                    benchmark_version=template.version,
+                    similarity_score=None,
+                    phases=phases,
+                    metrics=[],
+                    feedback=[],
+                    capture_quality=capture_quality,
+                    player_video_url=f"/api/v1/analysis/{analysis_id}/video",
+                    media_expires_at=expires_at,
+                )
+                result = _compare_result(cfg, base, template, player_metrics, evidence)
+                _atomic_write(keypoints_path, sequence.model_dump_json())
+                _atomic_write(result_path, result.model_dump_json(indent=2))
+                return result
+        except BaseException as exc:
+            for path in (video_path, keypoints_path, result_path):
+                path.unlink(missing_ok=True)
+            if isinstance(exc, AnalysisBusy):
+                raise HTTPException(429, str(exc), headers={"Retry-After": "5"}) from exc
+            if isinstance(exc, (ValueError, RuntimeError)):
+                raise HTTPException(422, str(exc)) from exc
+            raise
+        finally:
+            video.file.close()
 
 
 def _active_result(cfg: Settings, analysis_id: str) -> AnalysisResult:
+    _result_path(cfg, analysis_id)
+    with analysis_lock(cfg.data_dir, analysis_id):
+        return _active_result_locked(cfg, analysis_id)
+
+
+def _active_result_locked(cfg: Settings, analysis_id: str) -> AnalysisResult:
     base = _load_result(cfg, analysis_id)
     is_active = (base.template_id or base.benchmark_version) == ACTIVE_TEMPLATE_ID
+    if media_expired(base.media_expires_at):
+        # Old reports may contain inline pose data. Never return expired media in JSON.
+        if base.player_sequence is not None:
+            base = base.model_copy(update={"player_sequence": None, "benchmark_sequence": None})
+            _atomic_write(_result_path(cfg, analysis_id), base.model_dump_json(indent=2))
+        if not is_active:
+            raise HTTPException(410, "legacy analysis pose data has expired")
+        return base
     if is_active and base.capture_quality is not None:
         return base
     keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
@@ -265,17 +285,12 @@ def compare_with_template(
     player_metrics = {
         metric.name: metric.value for metric in base.metrics if metric.value is not None
     }
-    evidence = {
+    evidence = base.measurement_evidence or {
         metric.name: {
             "confidence": metric.confidence,
             "coverage": metric.coverage,
-            "reliable": metric.value is not None and metric.coverage >= 0.75,
-            "reason": (
-                metric.unavailable_reason
-                if metric.unavailable_reason
-                and "slow-motion" not in metric.unavailable_reason
-                else None
-            ),
+            "reliable": metric.reliable,
+            "reason": metric.unavailable_reason,
         }
         for metric in base.metrics
     }
@@ -285,6 +300,8 @@ def compare_with_template(
 @router.get("/analysis/{analysis_id}/replay", response_model=ReplayPayload)
 def replay(analysis_id: str, cfg: Cfg, template_id: str | None = None) -> ReplayPayload:
     base = _active_result(cfg, analysis_id)
+    if media_expired(base.media_expires_at):
+        raise HTTPException(410, "skeleton replay data has expired")
     template = _resolve_template(cfg, template_id)
     keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
     if keypoints_path.is_file():
@@ -374,7 +391,7 @@ def _replay_window(
 @router.get("/analysis/{analysis_id}/video")
 def analysis_video(analysis_id: str, cfg: Cfg) -> FileResponse:
     result = _load_result(cfg, analysis_id)
-    if result.media_expires_at and datetime.now(timezone.utc) > result.media_expires_at:
+    if media_expired(result.media_expires_at):
         raise HTTPException(410, "source video has expired")
     matches = [
         path
@@ -389,11 +406,13 @@ def analysis_video(analysis_id: str, cfg: Cfg) -> FileResponse:
 @router.delete("/analysis/{analysis_id}", status_code=204)
 def delete_analysis(analysis_id: str, cfg: Cfg) -> Response:
     result_path = _result_path(cfg, analysis_id)
-    if not result_path.exists():
-        raise HTTPException(404, f"no analysis '{analysis_id}'")
-    result_path.unlink()
-    (cfg.keypoints_dir / f"{analysis_id}.json").unlink(missing_ok=True)
-    for path in cfg.uploads_dir.glob(f"{analysis_id}.*"):
-        if path.suffix in ALLOWED_EXTENSIONS:
-            path.unlink(missing_ok=True)
+    with analysis_lock(cfg.data_dir, analysis_id):
+        if not result_path.exists():
+            raise HTTPException(404, f"no analysis '{analysis_id}'")
+        # Delete the report last, so interrupted deletion remains discoverable by cleanup.
+        (cfg.keypoints_dir / f"{analysis_id}.json").unlink(missing_ok=True)
+        for path in cfg.uploads_dir.glob(f"{analysis_id}.*"):
+            if path.suffix in ALLOWED_EXTENSIONS:
+                path.unlink(missing_ok=True)
+        result_path.unlink()
     return Response(status_code=204)

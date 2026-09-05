@@ -1,0 +1,132 @@
+{
+  "analysis_id": "demo",
+  "benchmark_version": "curry_v3",
+  "template_id": "curry_v3",
+  "template_name": "Synthetic test reference",
+  "timing_mode": "realtime",
+  "timing_reliable": true,
+  "similarity_score": null,
+  "form_score": null,
+  "timing_score": null,
+  "quality": null,
+  "capture_quality": null,
+  "phases": [
+    {
+      "phase": "dip",
+      "start_frame": 0,
+      "end_frame": 0,
+      "start_ms": 0,
+      "end_ms": 0,
+      "anchor_frame": 0,
+      "anchor_ms": 0,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "load",
+      "start_frame": 1,
+      "end_frame": 1,
+      "start_ms": 100,
+      "end_ms": 100,
+      "anchor_frame": 1,
+      "anchor_ms": 100,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "lift",
+      "start_frame": 2,
+      "end_frame": 2,
+      "start_ms": 200,
+      "end_ms": 200,
+      "anchor_frame": 2,
+      "anchor_ms": 200,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "release",
+      "start_frame": 3,
+      "end_frame": 3,
+      "start_ms": 300,
+      "end_ms": 300,
+      "anchor_frame": 3,
+      "anchor_ms": 300,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "follow_through",
+      "start_frame": 4,
+      "end_frame": 4,
+      "start_ms": 400,
+      "end_ms": 400,
+      "anchor_frame": 4,
+      "anchor_ms": 400,
+      "degraded": false,
+      "censored": false
+    }
+  ],
+  "metrics": [],
+  "feedback": [],
+  "benchmark_phases": [
+    {
+      "phase": "dip",
+      "start_frame": 0,
+      "end_frame": 0,
+      "start_ms": 0,
+      "end_ms": 0,
+      "anchor_frame": 0,
+      "anchor_ms": 0,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "load",
+      "start_frame": 1,
+      "end_frame": 1,
+      "start_ms": 100,
+      "end_ms": 100,
+      "anchor_frame": 1,
+      "anchor_ms": 100,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "lift",
+      "start_frame": 2,
+      "end_frame": 2,
+      "start_ms": 200,
+      "end_ms": 200,
+      "anchor_frame": 2,
+      "anchor_ms": 200,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "release",
+      "start_frame": 3,
+      "end_frame": 3,
+      "start_ms": 300,
+      "end_ms": 300,
+      "anchor_frame": 3,
+      "anchor_ms": 300,
+      "degraded": false,
+      "censored": false
+    },
+    {
+      "phase": "follow_through",
+      "start_frame": 4,
+      "end_frame": 4,
+      "start_ms": 400,
+      "end_ms": 400,
+      "anchor_frame": 4,
+      "anchor_ms": 400,
+      "degraded": false,
+      "censored": false
+    }
+  ],
+  "media_expires_at": null,
+  "player_video_url": "/api/v1/analysis/demo/video",
+  "template_video_url": "/api/v1/templates/curry_v3/video"
+}

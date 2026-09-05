@@ -1,10 +1,10 @@
-# OnMotion — Product Requirements Document
+# OneMotion — Product Requirements Document
 
 Version: 0.2 · Date: 2026-09-05 · Status: Implemented MVP
 
 ## 1. Overview
 
-OnMotion is a shooting-training application that teaches the **one-motion shot** — the fluid, single-rhythm shooting motion popularized by Stephen Curry. Instead of generic tips, OnMotion compares the player's actual body mechanics against a benchmark built from Curry's own shooting footage and reports measurable differences with actionable corrections.
+OneMotion is a shooting-training application that teaches the **one-motion shot** — the fluid, single-rhythm shooting motion popularized by Stephen Curry. Instead of generic tips, OneMotion compares the player's actual body mechanics against a benchmark built from Curry's own shooting footage and reports measurable differences with actionable corrections.
 
 ### 1.1 Problem
 
@@ -20,7 +20,7 @@ OnMotion is a shooting-training application that teaches the **one-motion shot**
 
 ### 1.3 Design inspiration
 
-HomeCourt (Nike) is the UX bar: near-zero setup, instant feedback after every rep, game-like progression, and session history that shows improvement over time. OnMotion adopts these principles for form training rather than shot counting.
+HomeCourt (Nike) is the UX bar: near-zero setup, instant feedback after every rep, game-like progression, and session history that shows improvement over time. OneMotion adopts these principles for form training rather than shot counting.
 
 ## 2. Goals and non-goals
 

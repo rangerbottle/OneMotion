@@ -13,14 +13,14 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 onmotion \
-    && useradd --uid 10001 --gid onmotion --create-home onmotion
+    && groupadd --gid 10001 onemotion \
+    && useradd --uid 10001 --gid onemotion --create-home onemotion
 
 WORKDIR /srv/backend
 COPY --from=builder /srv/backend/.venv ./.venv
-COPY --chown=onmotion:onmotion backend/app ./app
-COPY --chown=onmotion:onmotion infra/artifacts.json /srv/infra/artifacts.json
+COPY --chown=onemotion:onemotion backend/app ./app
+COPY --chown=onemotion:onemotion infra/artifacts.json /srv/infra/artifacts.json
 
-USER onmotion
+USER onemotion
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers"]

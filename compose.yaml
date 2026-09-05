@@ -1,4 +1,4 @@
-name: onmotion
+name: onemotion
 
 services:
   api:
@@ -6,13 +6,15 @@ services:
       context: .
       dockerfile: infra/docker/backend.Dockerfile
     environment:
-      ONMOTION_DATA_DIR: /srv/data
-      ONMOTION_MODEL_PATH: /srv/models/yolo11n-pose.pt
-      ONMOTION_ARTIFACT_MANIFEST: /srv/infra/artifacts.json
-      ONMOTION_POSE_BACKEND: yolo
-      ONMOTION_ALLOWED_ORIGINS: http://localhost:${ONMOTION_PORT:-3000}
-      ONMOTION_WARM_MODEL: "true"
-      ONMOTION_MEDIA_TTL_HOURS: ${ONMOTION_MEDIA_TTL_HOURS:-24}
+      ONEMOTION_DATA_DIR: /srv/data
+      ONEMOTION_MODEL_PATH: /srv/models/yolo11n-pose.pt
+      ONEMOTION_ARTIFACT_MANIFEST: /srv/infra/artifacts.json
+      ONEMOTION_POSE_BACKEND: yolo
+      ONEMOTION_ALLOWED_ORIGINS: http://localhost:${ONEMOTION_PORT:-3000}
+      ONEMOTION_WARM_MODEL: "true"
+      ONEMOTION_MEDIA_TTL_HOURS: ${ONEMOTION_MEDIA_TTL_HOURS:-24}
+      ONEMOTION_ANALYSIS_CONCURRENCY: ${ONEMOTION_ANALYSIS_CONCURRENCY:-1}
+      ONEMOTION_ANALYSIS_TIMEOUT_S: ${ONEMOTION_ANALYSIS_TIMEOUT_S:-120}
     volumes:
       - ./data:/srv/data
       - ./models:/srv/models:ro
@@ -33,7 +35,7 @@ services:
       args:
         NEXT_PUBLIC_API_BASE: ""
     environment:
-      ONMOTION_API_BASE: http://api:8000
+      ONEMOTION_API_BASE: http://api:8000
     depends_on:
       api:
         condition: service_healthy
@@ -48,7 +50,7 @@ services:
   gateway:
     image: nginx:1.27-alpine
     ports:
-      - "${ONMOTION_PORT:-3000}:8080"
+      - "${ONEMOTION_PORT:-3000}:8080"
     volumes:
       - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:

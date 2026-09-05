@@ -19,7 +19,11 @@ def health() -> dict[str, str]:
 
 @router.get("/ready")
 def ready(cfg: Cfg):
-    failures = verify_manifest(cfg.artifact_manifest)
+    failures = verify_manifest(cfg.artifact_manifest, {
+        "models/yolo11n-pose.pt": cfg.model_path,
+        "data/benchmarks/curry_v3.json": cfg.benchmark_path,
+        "data/raw_videos/curry/curry_v3_reference.mp4": cfg.raw_videos_dir / "curry_v3_reference.mp4",
+    })
     if cfg.pose_backend == "yolo" and not cfg.model_path.is_file():
         failures.append(f"pose model missing: {cfg.model_path}")
     try:
@@ -30,13 +34,15 @@ def ready(cfg: Cfg):
             failures.append("curry_v3 replay video is missing")
     except (FileNotFoundError, ValueError) as exc:
         failures.append(str(exc))
-    try:
-        cfg.analyses_dir.mkdir(parents=True, exist_ok=True)
-        probe = cfg.analyses_dir / ".ready"
-        probe.write_text("ok")
-        probe.unlink(missing_ok=True)
-    except OSError as exc:
-        failures.append(f"data directory is not writable: {exc}")
+    import tempfile
+    for directory in (cfg.analyses_dir, cfg.uploads_dir, cfg.keypoints_dir, cfg.data_dir / ".locks"):
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryFile(dir=directory) as probe:
+                probe.write(b"ok")
+                probe.flush()
+        except OSError as exc:
+            failures.append(f"data directory is not writable: {directory}: {exc}")
     if failures:
         from fastapi.responses import JSONResponse
 

@@ -77,8 +77,8 @@ def test_template_registry_exposes_only_v3(tmp_path) -> None:
     item = response.json()[0]
     assert len(response.json()) == 1
     assert item["template_id"] == "curry_v3"
-    assert item["timing_mode"] == "realtime"
-    assert item["timing_reliable"] is True
+    assert item["timing_mode"] == "unknown"
+    assert item["timing_reliable"] is False
 
 
 def test_retired_template_returns_410(client) -> None:

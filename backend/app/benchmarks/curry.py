@@ -15,7 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
-from app.analysis.metrics import compute_all
+from app.analysis.metrics import compute_all, measurement_evidence
+from app.benchmarks.provenance import file_sha256, load_sources
+from app.core.storage import atomic_write
 from app.analysis.phases import segment
 from app.schemas.benchmark import BenchmarkProfile, MetricStats, PhaseTiming
 from app.schemas.pose import ShotSequence
@@ -29,13 +31,16 @@ def analyze_clip(
     """Pose → phases → metrics for one clip."""
     sequence = backend.estimate_video(clip_path)
     phases = segment(sequence)
-    return sequence, phases, compute_all(sequence, phases)
+    evidence = measurement_evidence(sequence, phases)
+    metrics = {name: value for name, value in compute_all(sequence, phases).items() if evidence[name]["reliable"]}
+    return sequence, phases, metrics
 
 
 def build_benchmark(
     clips_dir: Path,
     out_path: Path,
     clips: list[Path] | None = None,
+    input_manifest: Path | None = None,
 ) -> BenchmarkProfile:
     """Turn a folder of Curry clips into a versioned benchmark profile JSON."""
     from app.pose import get_backend
@@ -47,6 +52,11 @@ def build_benchmark(
     if not clips:
         raise FileNotFoundError(f"no clips found in {clips_dir}")
 
+    if len({path.stem for path in clips}) != len(clips):
+        raise ValueError("reference clip IDs must be unique")
+    if out_path.stem == "curry_v3" and (len(clips) != 1 or input_manifest is None):
+        raise ValueError("curry_v3 requires exactly one clip and an explicit --input-manifest")
+    sources = load_sources(input_manifest, clips) if input_manifest else {}
     backend = get_backend()
     sequences: dict[str, ShotSequence] = {}
     all_phases = {}
@@ -54,6 +64,13 @@ def build_benchmark(
     for clip in clips:
         print(f"[benchmark] processing {clip.name} …")
         seq, phases, metrics = analyze_clip(backend, clip)
+        source = sources.get(clip.stem)
+        if source:
+            duration = seq.frames[-1].t_ms - seq.frames[0].t_ms + 1000 / seq.fps
+            if abs(duration - (source.end_ms - source.start_ms)) > max(100, 2000 / seq.fps):
+                raise ValueError(f"reference duration does not match source manifest: {clip.name}")
+        if not metrics:
+            raise ValueError(f"reference has no reliable metrics: {clip.name}")
         sequences[clip.stem] = seq
         all_phases[clip.stem] = phases
         all_metrics[clip.stem] = metrics
@@ -79,21 +96,22 @@ def build_benchmark(
         durations = []
         for clip_id, phases in all_phases.items():
             seg = next(s for s in phases if s.phase == phase)
+            if seg.degraded or seg.censored:
+                continue
             frames = sequences[clip_id].frames
             durations.append(
                 (frames[seg.end_frame].t_ms - frames[seg.start_frame].t_ms) / 1000.0
             )
-        timing.append(
-            PhaseTiming(phase=phase, median_duration_s=float(np.median(durations)))
-        )
+        if durations:
+            timing.append(PhaseTiming(phase=phase, median_duration_s=float(np.median(durations))))
 
     # Canonical clip: smallest distance to the median profile.
     def distance(metrics: dict[str, float]) -> float:
         return sum(
             abs(metrics[name] - stats[name].median) / (abs(stats[name].median) + 1e-9)
+            if name in metrics else 1.0
             for name in metric_names
-            if name in metrics
-        )
+        ) / max(len(metric_names), 1)
 
     canonical_id = min(all_metrics, key=lambda c: distance(all_metrics[c]))
 
@@ -108,27 +126,32 @@ def build_benchmark(
         canonical_sequence=sequences[canonical_id],
         canonical_phases=all_phases[canonical_id],
     )
-    if out_path.stem == "curry_v3":
-        profile = profile.model_copy(
-            update={
-                "display_name": "Curry v3 — Real time / form + timing",
-                "description": (
-                    "Fixed-camera full-body reference from the first three seconds "
-                    "of BV14u411J7qS. This is a single-shot reference, not a "
-                    "population confidence interval."
-                ),
-                "source_url": "https://www.bilibili.com/video/BV14u411J7qS/",
-                "clip_start_ms": 0,
-                "clip_end_ms": 3000,
-                "timing_mode": "realtime",
-                "time_scale_to_realtime": 1.0,
-                "timing_reliable": True,
-                "template_kind": "single_reference",
-                "canonical_video_filename": "curry_v3_reference.mp4",
-            }
-        )
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(profile.model_dump_json(indent=2))
+    canonical_path = next(path for path in clips if path.stem == canonical_id)
+    source = sources.get(canonical_id)
+    realtime = bool(sources) and all(item.timing_mode == "realtime" for item in sources.values())
+    from app.core.config import settings
+    algorithm_files = sorted((Path(__file__).parents[1] / "analysis").glob("*.py"))
+    import hashlib
+    algorithm_hash = hashlib.sha256(b"".join(path.name.encode() + path.read_bytes() for path in algorithm_files)).hexdigest()
+    profile = profile.model_copy(update={
+        "display_name": f"{out_path.stem.replace('_', ' ').title()} — {'Form + timing' if realtime else 'Form reference'}",
+        "description": "Single-shot reference, not a population confidence interval." if len(clips) == 1 else "Aggregate of explicitly selected reference clips.",
+        "source_url": source.source_url if source else None,
+        "clip_start_ms": source.start_ms if source else None,
+        "clip_end_ms": source.end_ms if source else None,
+        "timing_mode": "realtime" if realtime else source.timing_mode if len(clips) == 1 and source else "unknown",
+        "time_scale_to_realtime": source.time_scale_to_realtime if source else None,
+        "timing_reliable": realtime,
+        "template_kind": "single_reference" if len(clips) == 1 else "aggregate",
+        "canonical_video_filename": canonical_path.name,
+        "provenance": {
+            "clips": [item.model_dump() for item in sources.values()],
+            "canonical_sha256": file_sha256(canonical_path),
+            "model_sha256": file_sha256(settings.model_path) if settings.model_path.is_file() else None,
+            "algorithm_sha256": algorithm_hash,
+        },
+    })
+    atomic_write(out_path, profile.model_dump_json(indent=2))
     print(f"[benchmark] wrote {out_path} (canonical clip: {canonical_id})")
     return profile
 

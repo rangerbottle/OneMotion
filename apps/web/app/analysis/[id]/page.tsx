@@ -65,6 +65,11 @@ export default async function AnalysisPage({
   const { id } = await params;
   const response = await getAnalysis(id);
   if (response.status === 404) notFound();
+  if (response.status === 410) return <div className="mx-auto max-w-xl space-y-4 px-6 py-12">
+    <h1 className="text-xl font-semibold">This analysis is no longer available</h1>
+    <p>Its source data has expired. Upload a new shot to create another report.</p>
+    <a href="/upload" className="underline">Upload a new shot</a>
+  </div>;
   if (!response.ok) throw new Error(`analysis fetch failed: ${response.status}`);
   const result: AnalysisResult = await response.json();
   const t0 = result.phases[0]?.start_ms ?? 0;
@@ -75,10 +80,12 @@ export default async function AnalysisPage({
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-6 py-10">
       <section className="flex flex-col gap-5">
         <div className="rounded-xl bg-zinc-100 p-4 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-          <p className="font-medium">Curry v3 · real-time reference</p>
+          <p className="font-medium">{result.template_name ?? result.benchmark_version}</p>
           <p className="mt-1">
-            Form and timing use the first three seconds of the Curry v3 clip.
-            It is a single-shot reference, not a population confidence interval.
+            {result.timing_reliable
+              ? "Form and timing use the selected real-time reference."
+              : "Timing comparison is unavailable because reference playback speed is not verified as real time."}
+            {" "}Reference measurements describe the selected footage, not a population confidence interval.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-3">

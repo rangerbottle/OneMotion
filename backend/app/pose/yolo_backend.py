@@ -8,6 +8,9 @@ Multi-person frames: the largest bounding box is taken as the shooter.
 """
 
 from pathlib import Path
+import time
+
+from app.core.video import check_decode_budget, validate_metadata
 
 import cv2
 import numpy as np
@@ -27,40 +30,40 @@ DEFAULT_WEIGHTS = REPO_ROOT / "models" / "yolo11n-pose.pt"
 class YoloPoseBackend:
     name = "yolo"
 
-    def __init__(self, weights_path: Path = DEFAULT_WEIGHTS, imgsz: int = 640) -> None:
+    def __init__(self, weights_path: Path = DEFAULT_WEIGHTS, imgsz: int = 640, timeout_s: float = 120) -> None:
         from ultralytics import YOLO
 
         self._model = YOLO(str(weights_path))  # auto-downloads if missing
         self._imgsz = imgsz
+        self._timeout_s = timeout_s
 
     def estimate_video(self, video_path: Path) -> ShotSequence:
         cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            raise ValueError(f"cannot open video: {video_path}")
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
         frames: list[PoseFrame] = []
-        idx = 0
-        previous_center: np.ndarray | None = None
-        while True:
-            ok, bgr = cap.read()
-            if not ok:
-                break
-            t_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-            keypoints, detected_center = self._estimate_bgr(bgr, previous_center)
-            if detected_center is not None:
-                previous_center = detected_center
-            frames.append(
-                PoseFrame(
-                    frame_idx=idx,
-                    t_ms=t_ms,
-                    keypoints=keypoints or empty_keypoints(),
-                )
-            )
-            idx += 1
-        cap.release()
+        started = time.monotonic()
+        try:
+            fps, width, height = validate_metadata(cap)
+            idx = 0
+            previous_center: np.ndarray | None = None
+            while True:
+                ok, bgr = cap.read()
+                if not ok:
+                    break
+                timestamp = cap.get(cv2.CAP_PROP_POS_MSEC)
+                if not np.isfinite(timestamp) or timestamp < 0:
+                    raise ValueError("invalid video timestamp")
+                t_ms = int(timestamp)
+                if frames and t_ms <= frames[-1].t_ms:
+                    raise ValueError("video timestamps must strictly increase")
+                check_decode_budget(idx, t_ms, started, self._timeout_s)
+                keypoints, detected_center = self._estimate_bgr(bgr, previous_center)
+                check_decode_budget(idx, t_ms, started, self._timeout_s)
+                if detected_center is not None:
+                    previous_center = detected_center
+                frames.append(PoseFrame(frame_idx=idx, t_ms=t_ms, keypoints=keypoints or empty_keypoints()))
+                idx += 1
+        finally:
+            cap.release()
 
         if not frames:
             raise ValueError(f"no person detected in any frame: {video_path}")

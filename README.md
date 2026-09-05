@@ -1,8 +1,8 @@
-# OnMotion
+# OneMotion
 
 Learn Stephen Curry's one-motion jump shot with computer vision.
 
-OnMotion builds a biomechanical benchmark from Stephen Curry's shooting footage, captures your own shot from an uploaded clip or live camera, and compares the two motions — release posture, shot tempo, lower-body loading, and more — to give concrete, Curry-specific feedback. The current reference is Curry v3: the first three real-time seconds of the configured source clip.
+OneMotion builds a biomechanical benchmark from Stephen Curry's shooting footage, captures your own shot from an uploaded clip or live camera, and compares the two motions — release posture, shot tempo, lower-body loading, and more — to give concrete, Curry-specific feedback. The current reference is Curry v3: the first three real-time seconds of the configured source clip.
 
 ## Monorepo layout
 
@@ -20,15 +20,16 @@ Docker Compose runs the API, Next.js app, and an Nginx gateway behind one origin
 - `data/benchmarks/curry_v3.json`
 - `data/raw_videos/curry/curry_v3_reference.mp4`
 
-Prepare the model once if it is missing, then start the stack:
+Prepare the model once if it is missing. Obtain the approved local source and build/pin its benchmark using the local-development commands below before starting the stack:
 
 ```bash
-curl -L -o models/yolo11n-pose.pt \
+mkdir -p models
+curl -L --fail -o models/yolo11n-pose.pt \
   https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-pose.pt
 docker compose up --build
 ```
 
-Open http://localhost:3000. `GET /health` is the liveness probe; `GET /ready` verifies the model, v3 benchmark, reference video, manifest checksums, and writable data directories. Set `ONMOTION_PORT` to publish a different host port and `ONMOTION_MEDIA_TTL_HOURS` to change the default 24-hour upload/replay retention period.
+Open http://localhost:3000. `GET /health` is the liveness probe; `GET /ready` verifies the model, v3 benchmark, reference video, manifest checksums, and writable data directories. Set `ONEMOTION_PORT` to publish a different host port and `ONEMOTION_MEDIA_TTL_HOURS` to change the default 24-hour upload/replay retention period.
 
 ## Local development
 
@@ -39,16 +40,25 @@ cd backend
 uv sync
 
 # one-time: pose model weights (auto-downloads on first use instead if missing)
-curl -L -o ../models/yolo11n-pose.pt \
+mkdir -p ../models
+curl -L --fail -o ../models/yolo11n-pose.pt \
   https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-pose.pt
 
 # v3 uses exactly 0:00–0:03 of the requested real-time source file
 uv run python scripts/prepare_reference_clip.py \
   ../data/raw_videos/curry/curry_v3_source.mp4 \
-  ../data/raw_videos/curry/curry_v3_reference.mp4 --start-ms 0 --end-ms 3000
+  ../data/raw_videos/curry/curry_v3_reference.mp4 --start-ms 0 --end-ms 3000 \
+  --provenance ../data/raw_videos/curry/curry_v3_sources.json \
+  --timing-mode realtime --time-scale 1 \
+  --source-url https://www.bilibili.com/video/BV14u411J7qS/
 uv run python scripts/build_curry_benchmark.py \
   --clip ../data/raw_videos/curry/curry_v3_reference.mp4 \
-  --out ../data/benchmarks/curry_v3.json
+  --out ../data/benchmarks/curry_v3.json \
+  --input-manifest ../data/raw_videos/curry/curry_v3_sources.json
+
+# Review the new profile, then explicitly pin its model/profile/video hashes.
+uv run python scripts/release_artifacts.py
+uv run python scripts/release_artifacts.py --check
 
 uv run uvicorn app.main:app --reload   # http://localhost:8000/health
 uv run pytest                          # smoke tests
@@ -58,7 +68,7 @@ Web app (Node 20+):
 
 ```bash
 cd apps/web
-npm install
+npm ci
 npm run dev                            # http://localhost:3000
 ```
 
@@ -83,3 +93,37 @@ does not synthesize a side view from an oblique upload: monocular view generatio
 can hallucinate joint geometry and would make the resulting biomechanics unsafe
 to compare. See [the architecture notes](docs/ARCHITECTURE.md) for the validation
 gate required before that experiment can be exposed.
+
+## Verification and operation
+
+Run `uv run pytest -q` from `backend`; run `npm run lint`, `npm run typecheck`,
+`npx playwright install chromium`, `npm test`, and `npm run build` from `apps/web`.
+CI runs these checks and builds both containers without private reference media.
+Browser tests use synthetic fixtures on ports 3109 and 8129.
+
+All application settings use the `ONEMOTION_` prefix. Update existing deployment
+variables when upgrading. `ONEMOTION_ANALYSIS_CONCURRENCY` defaults to 1 per API
+process; `ONEMOTION_ANALYSIS_TIMEOUT_S` defaults to 120 seconds. The supported
+YOLO decoder enforces a 12-second, 1440-frame, 4K-pixel/120-fps budget, including
+clips with incomplete metadata. Inference checks the timeout between frame calls;
+it is not a hard interruption of a native decoder or model call. Busy requests
+return 429 with Retry-After. Keep one Uvicorn worker for the configured CPU budget.
+
+On Linux, prepare writable bind mounts for the API's UID/GID 10001. For a new
+installation, create `data/analyses`, `data/uploads`, `data/keypoints`, and
+`data/.locks`, and assign these directories to that UID/GID before starting
+Compose. `/ready` checks all four locations and actual configured artifact paths.
+
+Reference files stay local. Rebuilding changes creation metadata and therefore
+the release hash; use `release_artifacts.py` after reviewing a rebuild rather than
+disabling integrity checks. A version name alone never establishes playback
+speed. Source manifests default to unknown timing unless explicitly attested.
+
+See [the improvement ledger](docs/IMPROVEMENTS.md) for verification status and
+[the evaluation guide](docs/EVALUATION.md) for frozen-pose accuracy/regression cases.
+
+The Compose project is named `onemotion`. When upgrading an existing deployment,
+stop its previous Compose project at the chosen cutover time before starting the
+new project on the same host port. Keep the mounted data directories. Renaming a
+local checkout also requires updating the saved workspace path and any external
+bind mounts; it is separate from changing source/configuration names.

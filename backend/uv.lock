@@ -703,7 +703,7 @@ wheels = [
 ]
 
 [[package]]
-name = "onmotion-backend"
+name = "onemotion-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

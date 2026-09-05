@@ -9,22 +9,6 @@ from app.schemas.template import TemplateSummary
 
 ACTIVE_TEMPLATE_ID = "curry_v3"
 
-_METADATA: dict[str, dict] = {
-    "curry_v3": {
-        "display_name": "Curry v3 — Real time / form + timing",
-        "description": "Fixed-camera full-body reference from the first three seconds of BV14u411J7qS.",
-        "source_url": "https://www.bilibili.com/video/BV14u411J7qS/",
-        "clip_start_ms": 0,
-        "clip_end_ms": 3000,
-        "timing_mode": "realtime",
-        "time_scale_to_realtime": 1.0,
-        "timing_reliable": True,
-        "template_kind": "single_reference",
-        "canonical_video_filename": "curry_v3_reference.mp4",
-    },
-}
-
-
 def _validate_template_id(template_id: str) -> str:
     if template_id != ACTIVE_TEMPLATE_ID:
         raise ValueError(f"template '{template_id}' is retired; use {ACTIVE_TEMPLATE_ID}")
@@ -32,25 +16,32 @@ def _validate_template_id(template_id: str) -> str:
 
 
 def decorate_template(profile: BenchmarkProfile) -> BenchmarkProfile:
-    """Apply registry metadata while keeping old JSON artifacts compatible."""
-    override = _METADATA.get(profile.version, {})
-    updates = {key: value for key, value in override.items() if value is not None}
-    if not updates.get("canonical_video_filename"):
-        updates["canonical_video_filename"] = f"{profile.canonical_clip_id}.mp4"
-    return profile.model_copy(update=updates)
+    """Preserve artifact evidence; a registry ID cannot establish source timing."""
+    return profile.model_copy(update={"display_name": profile.display_name or profile.version})
 
 
 def load_template(cfg: Settings, template_id: str) -> BenchmarkProfile:
     template_id = _validate_template_id(template_id)
-    return decorate_template(load_benchmark(cfg.benchmarks_dir / f"{template_id}.json"))
+    profile = load_benchmark(cfg.benchmarks_dir / f"{template_id}.json")
+    if profile.version != template_id:
+        raise ValueError("template file and embedded version disagree")
+    return decorate_template(profile)
 
 
 def template_video_path(cfg: Settings, profile: BenchmarkProfile) -> Path | None:
     filename = profile.canonical_video_filename
     if filename:
+        if Path(filename).name != filename:
+            raise ValueError("canonical video must be a filename inside the reference directory")
         candidate = cfg.raw_videos_dir / filename
         if candidate.is_file():
+            expected = profile.provenance.get("canonical_sha256")
+            if expected:
+                from app.benchmarks.provenance import file_sha256
+                if file_sha256(candidate) != expected:
+                    raise ValueError("canonical video does not match benchmark provenance")
             return candidate
+        return None
     for extension in (".mp4", ".mov", ".webm"):
         candidate = cfg.raw_videos_dir / f"{profile.canonical_clip_id}{extension}"
         if candidate.is_file():

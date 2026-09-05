@@ -10,7 +10,7 @@ ARG NEXT_PUBLIC_API_BASE=""
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY apps/web ./
-RUN npm run build
+RUN mkdir -p public && npm run build
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
@@ -18,11 +18,11 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000
-RUN groupadd --gid 10001 onmotion \
-    && useradd --uid 10001 --gid onmotion --create-home onmotion
-COPY --from=builder --chown=onmotion:onmotion /app/.next/standalone ./
-COPY --from=builder --chown=onmotion:onmotion /app/.next/static ./.next/static
-COPY --from=builder --chown=onmotion:onmotion /app/public ./public
-USER onmotion
+RUN groupadd --gid 10001 onemotion \
+    && useradd --uid 10001 --gid onemotion --create-home onemotion
+COPY --from=builder --chown=onemotion:onemotion /app/.next/standalone ./
+COPY --from=builder --chown=onemotion:onemotion /app/.next/static ./.next/static
+COPY --from=builder --chown=onemotion:onemotion /app/public ./public
+USER onemotion
 EXPOSE 3000
 CMD ["node", "server.js"]

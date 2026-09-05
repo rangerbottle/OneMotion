@@ -7,7 +7,7 @@ export default function Home() {
         Shoot like Steph.
       </h1>
       <p className="mt-4 max-w-xl text-lg text-zinc-600 dark:text-zinc-400">
-        OnMotion compares your shot to Stephen Curry&rsquo;s one-motion
+        OneMotion compares your shot to Stephen Curry&rsquo;s one-motion
         benchmark — release angle, tempo, and form — then tells you exactly
         what to fix.
       </p>

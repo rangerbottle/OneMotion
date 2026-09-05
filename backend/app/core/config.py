@@ -1,24 +1,27 @@
-"""Runtime settings, read from ONMOTION_* environment variables."""
+"""Runtime settings, read from ONEMOTION_* environment variables."""
 
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="ONMOTION_", env_file=".env", extra="ignore"
+        env_prefix="ONEMOTION_", env_file=".env", extra="ignore"
     )
 
     data_dir: Path = REPO_ROOT / "data"
     pose_backend: Literal["rfdetr", "mediapipe", "yolo"] = "yolo"
     model_path: Path = REPO_ROOT / "models" / "yolo11n-pose.pt"
     artifact_manifest: Path = REPO_ROOT / "infra" / "artifacts.json"
-    media_ttl_hours: int = 24
+    media_ttl_hours: int = Field(default=24, ge=1)
+    analysis_concurrency: int = Field(default=1, ge=1, le=4)
+    analysis_timeout_s: float = Field(default=120, gt=0, le=600)
     allowed_origins: str = "http://localhost:3000"
     warm_model: bool = False
     # Roboflow API key, required only when pose_backend = "rfdetr".

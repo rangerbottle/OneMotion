@@ -1,7 +1,7 @@
 [project]
-name = "onmotion-backend"
+name = "onemotion-backend"
 version = "0.1.0"
-description = "OnMotion backend: pose estimation, Curry benchmark pipeline, shot comparison"
+description = "OneMotion backend: pose estimation, Curry benchmark pipeline, shot comparison"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115",

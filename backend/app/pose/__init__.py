@@ -7,7 +7,7 @@ from app.pose.base import PoseBackend
 
 
 @lru_cache(maxsize=4)
-def _build_backend(name: str, model_path: str, rf_api_key: str | None) -> PoseBackend:
+def _build_backend(name: str, model_path: str, rf_api_key: str | None, timeout_s: float = 120) -> PoseBackend:
     if name == "mediapipe":
         from app.pose.mediapipe_backend import MediaPipePoseBackend
 
@@ -16,7 +16,7 @@ def _build_backend(name: str, model_path: str, rf_api_key: str | None) -> PoseBa
     if name == "yolo":
         from app.pose.yolo_backend import YoloPoseBackend
 
-        return YoloPoseBackend(weights_path=Path(model_path))
+        return YoloPoseBackend(weights_path=Path(model_path), timeout_s=timeout_s)
 
     from app.pose.rfdetr_backend import RfDetrPoseBackend
 
@@ -29,4 +29,4 @@ def get_backend(cfg=None) -> PoseBackend:
         from app.core.config import settings
 
         cfg = settings
-    return _build_backend(cfg.pose_backend, str(cfg.model_path), cfg.rf_api_key)
+    return _build_backend(cfg.pose_backend, str(cfg.model_path), cfg.rf_api_key, cfg.analysis_timeout_s)

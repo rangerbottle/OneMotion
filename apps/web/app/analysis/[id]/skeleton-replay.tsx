@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiUrl,
+  ApiError,
+  responseError,
   getReplay,
   type BiomechanicsFrame,
   type DerivedValue,
@@ -94,8 +96,8 @@ function drawJointArc(
   const [a, b, c] = names.map((name) => points.get(name));
   if (!a || !b || !c || Math.min(a.confidence, b.confidence, c.confidence) < CONF_MIN) return;
   const center = { x: b.x * context.canvas.width, y: b.y * context.canvas.height };
-  const start = Math.atan2(a.y - b.y, a.x - b.x);
-  const finish = Math.atan2(c.y - b.y, c.x - b.x);
+  const start = Math.atan2((a.y - b.y) * context.canvas.height, (a.x - b.x) * context.canvas.width);
+  const finish = Math.atan2((c.y - b.y) * context.canvas.height, (c.x - b.x) * context.canvas.width);
   let delta = finish - start;
   while (delta > Math.PI) delta -= Math.PI * 2;
   while (delta < -Math.PI) delta += Math.PI * 2;
@@ -207,6 +209,9 @@ function metricText(value: DerivedValue, suffix = "°") {
 export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   const [replay, setReplay] = useState<ReplayPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [expired, setExpired] = useState(false);
+  const [mediaErrors, setMediaErrors] = useState<Partial<Record<Side, {message: string; expired: boolean}>>>({});
   const [mode, setMode] = useState<Mode>("realtime_locked");
   const [anchor, setAnchor] = useState<Anchor>("release");
   const [times, setTimes] = useState<Record<Side, number>>({ player: 0, template: 0 });
@@ -220,7 +225,8 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    getReplay(analysisId)
+    const controller = new AbortController();
+    getReplay(analysisId, controller.signal)
       .then((payload) => {
         if (!cancelled) {
           const initialAnchor = payload.sync.default_anchor;
@@ -239,11 +245,37 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
           setAnchor(initialAnchor);
         }
       })
-      .catch(() => {
-        if (!cancelled) setError("Video replay data is unavailable or expired.");
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setExpired(error instanceof ApiError && error.status === 410);
+          setError(error instanceof ApiError ? error.message : "Could not load replay. Check your connection and try again.");
+        }
       });
-    return () => { cancelled = true; };
-  }, [analysisId]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [analysisId, attempt]);
+
+  function retryReplay() {
+    setError(null);
+    setExpired(false);
+    setMediaErrors({});
+    setReplay(null);
+    setAttempt((value) => value + 1);
+  }
+
+  async function mediaFailure(side: Side, url: string) {
+    playerVideo.current?.pause();
+    templateVideo.current?.pause();
+    let expired = false;
+    let message = "This video could not be played. Retry or upload a supported clip.";
+    try {
+      const response = await fetch(url, { headers: { Range: "bytes=0-0" }, cache: "no-store" });
+      if (!response.ok) { expired = response.status === 410; message = (await responseError(response)).message; }
+      else await response.body?.cancel();
+    } catch {
+      message = "Could not load the video. Check your connection and retry.";
+    }
+    setMediaErrors((current) => ({ ...current, [side]: {message, expired} }));
+  }
 
   const sideData = useCallback((side: Side) => {
     if (!replay) return null;
@@ -273,6 +305,13 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
     const biomechanics = itemAt(data.biomechanics, timeMs);
     if (frame) drawOverlay(data.canvas, frame, biomechanics, data.color, showSkeleton, showData);
   }, [showData, showSkeleton, sideData]);
+
+  useEffect(() => {
+    for (const side of ["player", "template"] as Side[]) {
+      const video = sideData(side)?.video;
+      if (video) renderSide(side, video.currentTime * 1000);
+    }
+  }, [renderSide, sideData, replay]);
 
   const anchorTimes = useMemo(() => {
     if (!replay) return { player: 0, template: 0 };
@@ -327,13 +366,20 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   }, [pauseAll, replay, seekSide]);
 
   const onMediaTime = useCallback((side: Side, timeMs: number) => {
-    setTimes((current) => ({ ...current, [side]: timeMs }));
-    renderSide(side, timeMs);
+    const data = sideData(side);
+    const bounded = data ? Math.min(Math.max(timeMs, data.window.start_ms), data.window.end_ms) : timeMs;
+    setTimes((current) => ({ ...current, [side]: bounded }));
+    renderSide(side, bounded);
+    if (mode === "independent" && data && timeMs >= data.window.end_ms) {
+      data.video?.pause();
+      if (timeMs > data.window.end_ms + 1) seekSide(side, data.window.end_ms);
+      return;
+    }
     if (mode !== "realtime_locked" || side !== "player" || !replay) return;
     const offset = timeMs - anchorTimes.player;
     if (offset >= syncRange.end - 1) {
       pauseAll();
-      seekSync(syncRange.end);
+      if (offset > syncRange.end + 1) seekSync(syncRange.end);
       return;
     }
     const expected = anchorTimes.template + offset;
@@ -342,7 +388,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
     if (follower && Math.abs(follower.currentTime * 1000 - expected) > frameTolerance) {
       follower.currentTime = expected / 1000;
     }
-  }, [anchorTimes, mode, pauseAll, renderSide, replay, seekSync, syncRange.end]);
+  }, [anchorTimes, mode, pauseAll, renderSide, replay, seekSide, sideData, seekSync, syncRange.end]);
 
   useEffect(() => {
     if (!replay) return;
@@ -383,6 +429,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   }, [onMediaTime, replay, sideData]);
 
   const playBoth = useCallback(async () => {
+    if (Object.keys(mediaErrors).length) return;
     if (playing.player || playing.template) {
       pauseAll();
       return;
@@ -397,11 +444,11 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
       pauseAll();
       setError("Playback was blocked. Press play again after the videos load.");
     }
-  }, [anchorTimes.player, pauseAll, playing, replay, seekSync, syncRange, times.player]);
+  }, [anchorTimes.player, mediaErrors, pauseAll, playing, replay, seekSync, syncRange, times.player]);
 
   const toggleIndependent = useCallback(async (side: Side) => {
     const data = sideData(side);
-    if (!data?.video) return;
+    if (!data?.video || mediaErrors[side]) return;
     if (data.video.paused) {
       if (times[side] >= data.window.end_ms - 1000 / data.window.fps) {
         seekSide(side, data.window.start_ms);
@@ -414,7 +461,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
     } else {
       data.video.pause();
     }
-  }, [seekSide, sideData, times]);
+  }, [mediaErrors, seekSide, sideData, times]);
 
   const stepFrame = useCallback((side: Side, direction: -1 | 1) => {
     const data = sideData(side);
@@ -428,7 +475,11 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   }, [seekSide, sideData, times]);
 
   if (!replay) {
-    return <p className="text-sm text-zinc-500">{error ?? "Loading video replay…"}</p>;
+    return <div role="status" className="space-y-3 text-sm text-zinc-500">
+      <p>{error ?? "Loading video replay…"}</p>
+      {error && !expired ? <button className="rounded-full border px-4 py-2" onClick={retryReplay}>Retry replay</button> : null}
+      {error ? <a href="/upload" className="ml-3 underline">Upload a new shot</a> : null}
+    </div>;
   }
 
   const currentBiomechanics = {
@@ -462,6 +513,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
           {videoUrl ? (
             <video
               ref={videoRef}
+              onError={() => { const url = apiUrl(videoUrl); if (url) void mediaFailure(side, url); }}
               src={apiUrl(videoUrl) ?? undefined}
               muted
               playsInline
@@ -479,23 +531,24 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
           />
         </div>
 
+        {mediaErrors[side] ? <p role="alert" className="mt-3 text-sm text-amber-600">{mediaErrors[side]?.message} {!mediaErrors[side]?.expired ? <button className="underline" onClick={retryReplay}>Reload replay</button> : null} · <a href="/upload" className="underline">Upload a new shot</a></p> : null}
         <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
-            disabled={mode === "realtime_locked"}
+            disabled={mode === "realtime_locked" || !!mediaErrors[side]}
             onClick={() => stepFrame(side, -1)}
             className="h-9 min-w-10 rounded-full border px-3 disabled:opacity-35 active:scale-[.97]"
             aria-label={`${title} previous frame`}
           >−1</button>
           <button
             type="button"
-            disabled={mode === "realtime_locked"}
+            disabled={mode === "realtime_locked" || !!mediaErrors[side]}
             onClick={() => void toggleIndependent(side)}
             className="h-9 min-w-20 rounded-full border px-3 disabled:opacity-35 active:scale-[.97]"
           >{playing[side] ? "Pause" : "Play"}</button>
           <button
             type="button"
-            disabled={mode === "realtime_locked"}
+            disabled={mode === "realtime_locked" || !!mediaErrors[side]}
             onClick={() => stepFrame(side, 1)}
             className="h-9 min-w-10 rounded-full border px-3 disabled:opacity-35 active:scale-[.97]"
             aria-label={`${title} next frame`}
@@ -506,7 +559,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
             max={window.end_ms}
             step={1}
             value={Math.min(Math.max(times[side], window.start_ms), window.end_ms)}
-            disabled={mode === "realtime_locked"}
+            disabled={mode === "realtime_locked" || !!mediaErrors[side]}
             onPointerDown={() => sideData(side)?.video?.pause()}
             onChange={(event) => seekSide(side, Number(event.target.value))}
             className="min-w-0 flex-1 accent-foreground disabled:opacity-35"
@@ -561,6 +614,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
               checked={mode === "realtime_locked"}
               onChange={(event) => {
                 const nextMode = event.target.checked ? "realtime_locked" : "independent";
+                pauseAll();
                 setMode(nextMode);
                 if (nextMode === "realtime_locked") alignToAnchor(anchor);
               }}
@@ -594,6 +648,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
           <button
             type="button"
             onClick={() => void playBoth()}
+            disabled={Object.keys(mediaErrors).length > 0}
             className="h-10 min-w-24 rounded-full bg-foreground px-4 text-background active:scale-[.97]"
           >{playing.player || playing.template ? "Pause both" : "Play both"}</button>
           <label className="flex items-center gap-2 text-sm">

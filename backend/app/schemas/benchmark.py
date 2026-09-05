@@ -49,6 +49,7 @@ class BenchmarkProfile(BaseModel):
     timing_reliable: bool = False
     template_kind: Literal["aggregate", "single_reference"] = "aggregate"
     canonical_video_filename: str | None = None
+    provenance: dict = Field(default_factory=dict)
 
     def metric_value(
         self,
