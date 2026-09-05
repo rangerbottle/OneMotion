@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+out/
+/dist/
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# Data & models (large/binary artifacts stay local)
+data/raw_videos/
+data/keypoints/
+data/benchmarks/
+data/uploads/
+data/analyses/
+models/
+*.onnx
+*.pt
+*.pth
+*.tflite
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

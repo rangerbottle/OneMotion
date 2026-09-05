@@ -1,0 +1,39 @@
+[project]
+name = "onmotion-backend"
+version = "0.1.0"
+description = "OnMotion backend: pose estimation, Curry benchmark pipeline, shot comparison"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "python-multipart>=0.0.9",
+    "numpy>=2.5.2",
+    "ultralytics>=8.4.138",
+    "opencv-python>=5.0.0.93",
+    "torch>=2.14.0",
+    "torchvision>=0.29.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

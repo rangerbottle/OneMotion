@@ -1,0 +1,63 @@
+name: onmotion
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    environment:
+      ONMOTION_DATA_DIR: /srv/data
+      ONMOTION_MODEL_PATH: /srv/models/yolo11n-pose.pt
+      ONMOTION_ARTIFACT_MANIFEST: /srv/infra/artifacts.json
+      ONMOTION_POSE_BACKEND: yolo
+      ONMOTION_ALLOWED_ORIGINS: http://localhost:${ONMOTION_PORT:-3000}
+      ONMOTION_WARM_MODEL: "true"
+      ONMOTION_MEDIA_TTL_HOURS: ${ONMOTION_MEDIA_TTL_HOURS:-24}
+    volumes:
+      - ./data:/srv/data
+      - ./models:/srv/models:ro
+      - ./infra/artifacts.json:/srv/infra/artifacts.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    init: true
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: ""
+    environment:
+      ONMOTION_API_BASE: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    init: true
+
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "${ONMOTION_PORT:-3000}:8080"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    init: true
