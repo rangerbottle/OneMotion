@@ -33,3 +33,6 @@ models/
 .DS_Store
 .idea/
 .vscode/
+
+# dev.sh runtime state
+.run/
