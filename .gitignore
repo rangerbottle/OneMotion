@@ -36,3 +36,10 @@ models/
 
 # dev.sh runtime state
 .run/
+
+# Temp data lock
+data/.locks/
+
+# artifact data
+infra/artifacts.json
+

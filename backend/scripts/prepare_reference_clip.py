@@ -11,7 +11,15 @@ from pathlib import Path
 import cv2
 
 
-def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> int:
+def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> tuple[int, int]:
+    """Extract the ``[start_ms, end_ms)`` window of ``source`` into ``output``.
+
+    Returns ``(frames_written, effective_end_ms)``. ``effective_end_ms`` is
+    derived from the frames actually written, so the provenance manifest always
+    describes the real clip duration even when the source's frame timing differs
+    slightly from the request (rounding, variable frame rate, container quirks).
+    A source that stops well short of ``end_ms`` is still a hard error.
+    """
     if source.resolve() == output.resolve():
         raise ValueError("source and output must be different files")
     if not 0 <= start_ms < end_ms:
@@ -27,29 +35,55 @@ def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> int:
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         if not math.isfinite(fps) or fps <= 0 or width <= 0 or height <= 0:
             raise ValueError("source video has invalid timing or dimensions")
+        frame_ms = 1000.0 / fps
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=output.parent, suffix=output.suffix, delete=False) as handle:
             temporary = Path(handle.name)
         writer = cv2.VideoWriter(str(temporary), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
         if not writer.isOpened():
             raise RuntimeError(f"cannot create output video: {output}")
+
         written = 0
+        index = 0
+        latest_ms = 0.0
+        prev_pos = -1.0
+        trust_pos = True  # use CAP_PROP_POS_MSEC until it proves unreliable
+        reached_end = False
         while True:
             ok, frame = capture.read()
             if not ok:
                 break
-            timestamp_ms = capture.get(cv2.CAP_PROP_POS_MSEC)
+            pos = capture.get(cv2.CAP_PROP_POS_MSEC)
+            if trust_pos and (not math.isfinite(pos) or pos <= prev_pos):
+                # Timestamps missing, zero, or non-monotonic for this container;
+                # fall back to frame-index timing for the rest of the clip.
+                trust_pos = False
+            timestamp_ms = pos if trust_pos else index * frame_ms
+            if math.isfinite(pos):
+                prev_pos = pos
+            index += 1
+            latest_ms = max(latest_ms, timestamp_ms)
             if timestamp_ms < start_ms:
                 continue
             if timestamp_ms >= end_ms:
+                reached_end = True
                 break
             writer.write(frame)
             written += 1
-        if written == 0 or abs(written / fps * 1000 - (end_ms - start_ms)) > 2000 / fps:
-            raise ValueError("source does not contain the complete requested interval")
+
+        if written == 0:
+            raise ValueError(
+                f"no frames fall in {start_ms}-{end_ms} ms — check --start-ms/--end-ms against the clip"
+            )
+        source_ms = latest_ms + frame_ms
+        if not reached_end and (end_ms - source_ms) > max(3 * frame_ms, 200.0):
+            raise ValueError(
+                f"source is only ~{source_ms / 1000:.2f}s long but the requested interval ends at "
+                f"{end_ms / 1000:.2f}s — lower --end-ms or provide a longer clip"
+            )
         writer.release()
         temporary.replace(output)
-        return written
+        return written, start_ms + int(round(written * frame_ms))
     finally:
         capture.release()
         if writer is not None:
@@ -73,7 +107,7 @@ def main() -> None:
         parser.error("require 0 <= start-ms < end-ms")
     if args.timing_mode == "realtime" and args.time_scale != 1:
         parser.error("real-time source requires explicit --time-scale 1")
-    frames = clip_video(args.source, args.output, args.start_ms, args.end_ms)
+    frames, effective_end_ms = clip_video(args.source, args.output, args.start_ms, args.end_ms)
     if args.provenance:
         def digest(path):
             with path.open("rb") as handle:
@@ -82,10 +116,15 @@ def main() -> None:
         args.provenance.write_text(json.dumps({"clips": [{
             "path": os.path.relpath(args.output.resolve(), args.provenance.parent.resolve()),
             "sha256": digest(args.output), "source_sha256": digest(args.source),
-            "source_url": args.source_url, "start_ms": args.start_ms, "end_ms": args.end_ms,
+            "source_url": args.source_url, "start_ms": args.start_ms, "end_ms": effective_end_ms,
             "timing_mode": args.timing_mode, "time_scale_to_realtime": args.time_scale,
         }]}, indent=2))
     print(f"wrote {frames} frames to {args.output}")
+    if effective_end_ms != args.end_ms:
+        print(
+            f"note: effective interval is {args.start_ms}-{effective_end_ms} ms "
+            f"(the source's frame timing differed from the {args.end_ms} ms request)"
+        )
 
 
 if __name__ == "__main__":

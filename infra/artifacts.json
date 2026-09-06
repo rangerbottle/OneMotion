@@ -5,22 +5,22 @@
   "notes": "Reference media must not be redistributed until its reuse rights are confirmed.",
   "artifacts": [
     {
-      "id": "yolo11n-pose-v8.4.0",
+      "id": "yolo11n-pose",
       "path": "models/yolo11n-pose.pt",
       "size": 6255593,
       "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0"
     },
     {
-      "id": "curry-v3-profile-local",
+      "id": "curry_v3",
       "path": "data/benchmarks/curry_v3.json",
-      "size": 284416,
-      "sha256": "bbb9be126eca6ec37fae2dcad6e38b4dd0d9738cadcef142ae10008834a7557c"
+      "size": 268240,
+      "sha256": "975024c2e71fd5719f2720480d324c53e6deec48861ea947b5bdf8e0d1632c2f"
     },
     {
-      "id": "curry-v3-reference-local",
+      "id": "curry_v3_reference",
       "path": "data/raw_videos/curry/curry_v3_reference.mp4",
-      "size": 1087583,
-      "sha256": "587e4b5158237d905ef851daa7bd5c999a7d978ab752e91c57966ba1b83ca584"
+      "size": 2748966,
+      "sha256": "adc2966658abbf5fce1bda1ba62053bbb289c58a52c63c5908ea7eb8204009df"
     }
   ]
 }
