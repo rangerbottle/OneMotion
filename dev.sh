@@ -8,6 +8,7 @@
 #   ./dev.sh stop      stop both servers
 #   ./dev.sh restart   stop then start
 #   ./dev.sh logs      tail both server logs
+#   ./dev.sh benchmark <video>   build the Curry v3 reference clip + benchmark from a source
 #
 # Env overrides:
 #   ONEMOTION_PUBLIC_HOST   LAN address (e.g. 192.168.0.132) to serve other devices;
@@ -52,6 +53,13 @@ WEB_PID_FILE="$RUN_DIR/web.pid"
 API_LOG="$RUN_DIR/api.log"
 WEB_LOG="$RUN_DIR/web.log"
 NPM_CACHE="$RUN_DIR/npm-cache"
+
+CURRY_DIR="$REPO_ROOT/data/raw_videos/curry"
+CURRY_SOURCE="$CURRY_DIR/curry_v3_source.mp4"
+CURRY_REFERENCE="$CURRY_DIR/curry_v3_reference.mp4"
+CURRY_MANIFEST="$CURRY_DIR/curry_v3_sources.json"
+CURRY_BENCHMARK="$REPO_ROOT/data/benchmarks/curry_v3.json"
+POSE_MODEL="$REPO_ROOT/models/yolo11n-pose.pt"
 
 MIN_NODE_MAJOR=20
 
@@ -340,6 +348,87 @@ cmd_logs() {
   tail -n 40 -f "${files[@]}"
 }
 
+cmd_benchmark() {
+  local source="" start_ms=0 end_ms=3000 time_scale=1 source_url=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --start-ms)    start_ms="$2"; shift 2 ;;
+      --end-ms)      end_ms="$2"; shift 2 ;;
+      --time-scale)  time_scale="$2"; shift 2 ;;
+      --source-url)  source_url="$2"; shift 2 ;;
+      -h|--help)
+        echo "usage: ./dev.sh benchmark <source-video> [--start-ms N] [--end-ms N] [--time-scale N] [--source-url URL]"
+        echo
+        echo "Builds data/raw_videos/curry/curry_v3_reference.mp4 + data/benchmarks/curry_v3.json"
+        echo "from <source-video> and re-pins infra/artifacts.json (local only — do not commit)."
+        echo "The [start,end] window must contain one full side-on jump shot with the shooter"
+        echo "fully visible. Default window is 0–3000 ms at real-time speed (--time-scale 1)."
+        return 0 ;;
+      -*)  die "unknown option: $1 (see ./dev.sh benchmark --help)" ;;
+      *)   [ -z "$source" ] && source="$1" || die "unexpected argument: $1"; shift ;;
+    esac
+  done
+
+  [ -n "$source" ] || die "usage: ./dev.sh benchmark <source-video> [options] — see --help"
+  [ -f "$source" ] || die "source video not found: $source"
+  [ "$end_ms" -gt "$start_ms" ] 2>/dev/null || die "--end-ms ($end_ms) must be greater than --start-ms ($start_ms)"
+
+  local timing_mode="realtime"
+  [ "$time_scale" = "1" ] || timing_mode="slow_motion"
+
+  ensure_uv_on_path
+  command -v uv >/dev/null || install_uv
+  backend_deps_ok || sync_backend_deps
+  [ -f "$POSE_MODEL" ] || die "pose model missing: models/yolo11n-pose.pt — see README to fetch it"
+
+  mkdir -p "$CURRY_DIR" "$(dirname "$CURRY_BENCHMARK")"
+
+  # Stage the source at the canonical path (prepare_reference_clip refuses to
+  # read and write the same file, so the source must be distinct from the clip).
+  local src_abs; src_abs="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+  if [ "$src_abs" != "$CURRY_SOURCE" ]; then
+    info "staging source → data/raw_videos/curry/curry_v3_source.mp4"
+    cp "$src_abs" "$CURRY_SOURCE"
+  fi
+
+  local prep_args=(
+    "$CURRY_SOURCE" "$CURRY_REFERENCE"
+    --start-ms "$start_ms" --end-ms "$end_ms"
+    --provenance "$CURRY_MANIFEST"
+    --timing-mode "$timing_mode" --time-scale "$time_scale"
+  )
+  [ -n "$source_url" ] && prep_args+=( --source-url "$source_url" )
+
+  info "1/3  extracting ${start_ms}-${end_ms} ms reference clip + provenance manifest…"
+  if ! ( cd "$BACKEND_DIR" && uv run python scripts/prepare_reference_clip.py "${prep_args[@]}" ); then
+    die "clip extraction failed (see the error above) — the source must be a decodable video whose footage covers roughly ${start_ms}-${end_ms} ms"
+  fi
+
+  info "2/3  building benchmark (pose → phases → metrics → aggregate)…"
+  if ! ( cd "$BACKEND_DIR" && uv run python scripts/build_curry_benchmark.py \
+           --clip "$CURRY_REFERENCE" --out "$CURRY_BENCHMARK" --input-manifest "$CURRY_MANIFEST" ); then
+    err "benchmark build failed."
+    err "  the ${start_ms}-${end_ms} ms window must contain ONE full jump shot, filmed"
+    err "  side-on, with the shooter's whole body + arm + ball visible the entire time."
+    err "  re-run with --start-ms/--end-ms bracketing the shot in your clip."
+    exit 1
+  fi
+
+  info "3/3  pinning artifact hashes → infra/artifacts.json (local only — do not commit)…"
+  ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py )
+  ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py --check )
+
+  ok "benchmark ready — data/benchmarks/curry_v3.json (timing: $timing_mode)"
+
+  if pid_alive "$(read_pid "$API_PID_FILE")"; then
+    info "restarting backend to pick up the new benchmark…"
+    stop_service "backend" "$API_PID_FILE" "$API_PORT"
+    cmd_start
+  else
+    info "now run:  ./dev.sh start   — GET /ready should report \"ready\""
+  fi
+}
+
 usage() {
   # print the header comment block (everything after the shebang, up to the first
   # non-comment line), stripping the leading "# ".
@@ -355,6 +444,7 @@ main() {
     status|ps)       cmd_status ;;
     restart)         cmd_restart ;;
     logs|tail)       cmd_logs ;;
+    benchmark|bench) shift; cmd_benchmark "$@" ;;
     ""|-h|--help|help) usage ;;
     *) err "unknown command: $1"; echo; usage; exit 2 ;;
   esac

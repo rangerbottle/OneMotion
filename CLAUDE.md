@@ -41,6 +41,7 @@ npm run build                  # next build --webpack
 ```bash
 ./dev.sh deps                  # check/install toolchain (uv, node) + project deps
 ./dev.sh start | status | stop | restart | logs   # run both servers locally (bare metal)
+./dev.sh benchmark <video>     # build curry_v3 reference clip + benchmark from a source video, re-pin hashes
 docker compose up --build      # or: Nginx gateway → Next.js + FastAPI, http://localhost:3000
 ```
 
