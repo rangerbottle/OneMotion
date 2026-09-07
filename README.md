@@ -14,11 +14,12 @@ OneMotion builds a biomechanical benchmark from Stephen Curry's shooting footage
 
 ## Quickstart with Docker (recommended)
 
-Docker Compose runs the API, Next.js app, and an Nginx gateway behind one origin. It requires the following local-only artifacts, whose expected hashes are recorded in `infra/artifacts.json`:
+Docker Compose runs the API, Next.js app, and an Nginx gateway behind one origin. It requires the following local-only artifacts:
 
 - `models/yolo11n-pose.pt`
 - `data/benchmarks/curry_v3.json`
 - `data/raw_videos/curry/curry_v3_reference.mp4`
+- `infra/artifacts.json` — the checksum manifest for the three files above. It is **generated locally and gitignored** (not committed): `scripts/release_artifacts.py` pins it from whatever media you built, and `./dev.sh start` / `./dev.sh media` runs that for you. `compose.yaml` bind-mounts it, so it must exist on the host before `docker compose up` (otherwise Docker creates an empty directory there and the API never passes `/ready`).
 
 Prepare the model once if it is missing. Obtain the approved local source and build/pin its benchmark using the local-development commands below before starting the stack:
 
@@ -57,6 +58,8 @@ uv run python scripts/build_curry_benchmark.py \
   --input-manifest ../data/raw_videos/curry/curry_v3_sources.json
 
 # Review the new profile, then explicitly pin its model/profile/video hashes.
+# This writes infra/artifacts.json (local-only, gitignored). ./dev.sh start and
+# ./dev.sh media run this automatically whenever the manifest is missing or stale.
 uv run python scripts/release_artifacts.py
 uv run python scripts/release_artifacts.py --check
 
@@ -114,10 +117,13 @@ installation, create `data/analyses`, `data/uploads`, `data/keypoints`, and
 `data/.locks`, and assign these directories to that UID/GID before starting
 Compose. `/ready` checks all four locations and actual configured artifact paths.
 
-Reference files stay local. Rebuilding changes creation metadata and therefore
-the release hash; use `release_artifacts.py` after reviewing a rebuild rather than
-disabling integrity checks. A version name alone never establishes playback
-speed. Source manifests default to unknown timing unless explicitly attested.
+Reference files stay local, and so does the `infra/artifacts.json` manifest that
+pins them (gitignored — each machine regenerates it from its own media via
+`./dev.sh start` / `./dev.sh media` / `release_artifacts.py`). Rebuilding changes
+creation metadata and therefore the release hash; use `release_artifacts.py`
+after reviewing a rebuild rather than disabling integrity checks. A version name
+alone never establishes playback speed. Source manifests default to unknown
+timing unless explicitly attested.
 
 See [the improvement ledger](docs/IMPROVEMENTS.md) for verification status and
 [the evaluation guide](docs/EVALUATION.md) for frozen-pose accuracy/regression cases.

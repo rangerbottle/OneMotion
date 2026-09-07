@@ -41,13 +41,14 @@ npm run build                  # next build --webpack
 ```bash
 ./dev.sh deps                  # check/install toolchain (uv, node) + project deps
 ./dev.sh start | status | stop | restart | logs   # run both servers locally (bare metal)
+./dev.sh media                 # verify local analysis artifacts; rebuild/re-pin any gaps (also runs inside `start`)
 ./dev.sh benchmark <video>     # build curry_v3 reference clip + benchmark from a source video, re-pin hashes
 docker compose up --build      # or: Nginx gateway → Next.js + FastAPI, http://localhost:3000
 ```
 
 `dev.sh` writes PIDs/logs to `.run/` (gitignored) and starts the web app pointed at the local API. It binds to loopback by default; `ONEMOTION_PUBLIC_HOST=<LAN ip> ./dev.sh start` binds to `0.0.0.0` and fixes the browser API URL + CORS for other devices.
 
-Requires local-only artifacts (`models/yolo11n-pose.pt`, `data/benchmarks/curry_v3.json`, `data/raw_videos/curry/curry_v3_reference.mp4`) whose hashes are pinned in `infra/artifacts.json`. `GET /health` = liveness; `GET /ready` = artifacts + storage. See README "Local development" for the `prepare_reference_clip.py` → `build_curry_benchmark.py` → `release_artifacts.py` sequence that produces the benchmark.
+Requires local-only artifacts (`models/yolo11n-pose.pt`, `data/benchmarks/curry_v3.json`, `data/raw_videos/curry/curry_v3_reference.mp4`) whose hashes are pinned in `infra/artifacts.json` — itself gitignored and regenerated per-machine by `release_artifacts.py` (run automatically by `./dev.sh start` / `./dev.sh media`). `GET /health` = liveness; `GET /ready` = artifacts + storage. See README "Local development" for the `prepare_reference_clip.py` → `build_curry_benchmark.py` → `release_artifacts.py` sequence that produces the benchmark.
 
 ## Architecture
 
@@ -93,6 +94,6 @@ App Router. `record/` (getUserMedia) and `upload/` both POST to `/api/v1/analysi
 ## Conventions
 
 - Brand is **OneMotion** / `onemotion` / `ONEMOTION` — `scripts/check_branding.py` fails CI on the retired spelling in any tracked text file.
-- Reference media stays local-only (distribution rights not asserted). Rebuilding artifacts changes file hashes via creation timestamps — run `release_artifacts.py` after reviewing a rebuild; don't disable integrity checks.
+- Reference media stays local-only (distribution rights not asserted); `infra/artifacts.json` is gitignored too (generated from that media, not a committed baseline). Rebuilding artifacts changes file hashes via creation timestamps — run `release_artifacts.py` after reviewing a rebuild; don't disable integrity checks.
 - The "convert my oblique clip to a 90° side view" feature is **intentionally not built** — see the validation gate in `docs/ARCHITECTURE.md` §11 before touching anything in that direction.
 - `POST /api/v1/pose/estimate` is a deliberate 501 stub; analysis runs pose inline.

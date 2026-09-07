@@ -8,6 +8,7 @@
 #   ./dev.sh stop      stop both servers
 #   ./dev.sh restart   stop then start
 #   ./dev.sh logs      tail both server logs
+#   ./dev.sh media     verify the local analysis artifacts; rebuild/re-pin any gaps
 #   ./dev.sh benchmark <video>   build the Curry v3 reference clip + benchmark from a source
 #
 # Env overrides:
@@ -149,16 +150,116 @@ install_web_deps() {
 }
 
 check_reference_media() {
-  local bench="$REPO_ROOT/data/benchmarks/curry_v3.json"
-  local video="$REPO_ROOT/data/raw_videos/curry/curry_v3_reference.mp4"
-  local model="$REPO_ROOT/models/yolo11n-pose.pt"
-  [ -f "$model" ] && ok "pose model present" || warn "pose model missing: models/yolo11n-pose.pt (see README)"
-  if [ -f "$bench" ] && [ -f "$video" ]; then
+  [ -f "$POSE_MODEL" ] && ok "pose model present" || warn "pose model missing: models/yolo11n-pose.pt (see README)"
+  if [ -f "$CURRY_BENCHMARK" ] && [ -f "$CURRY_REFERENCE" ]; then
     ok "Curry v3 reference media present"
   else
     warn "Curry v3 reference media missing — /health works but shot analysis returns 503"
     warn "  need: data/benchmarks/curry_v3.json + data/raw_videos/curry/curry_v3_reference.mp4"
-    warn "  build these from an approved source clip (see README 'Local development')"
+    warn "  run ./dev.sh media (or ./dev.sh start) to build them, or ./dev.sh benchmark <video>"
+  fi
+}
+
+# Extract the reference clip, build the benchmark, and re-pin the local-only
+# manifest from <source-video>. Returns non-zero (without exiting) on any
+# failure so both `dev.sh benchmark` and the gap-fill in `start` can react.
+build_benchmark_artifacts() { # source-video start-ms end-ms time-scale [source-url]
+  local source="$1" start_ms="$2" end_ms="$3" time_scale="$4" source_url="${5:-}"
+
+  [ -f "$source" ] || { err "source video not found: $source"; return 1; }
+  [ "$end_ms" -gt "$start_ms" ] 2>/dev/null || { err "--end-ms ($end_ms) must exceed --start-ms ($start_ms)"; return 1; }
+
+  local timing_mode="realtime"
+  [ "$time_scale" = "1" ] || timing_mode="slow_motion"
+
+  ensure_uv_on_path
+  command -v uv >/dev/null || install_uv
+  backend_deps_ok || sync_backend_deps
+  [ -f "$POSE_MODEL" ] || { err "pose model missing: models/yolo11n-pose.pt — see README to fetch it"; return 1; }
+
+  mkdir -p "$CURRY_DIR" "$(dirname "$CURRY_BENCHMARK")"
+
+  # Stage the source at the canonical path (prepare_reference_clip refuses to
+  # read and write the same file, so the source must be distinct from the clip).
+  local src_abs; src_abs="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+  if [ "$src_abs" != "$CURRY_SOURCE" ]; then
+    info "staging source → data/raw_videos/curry/curry_v3_source.mp4"
+    cp "$src_abs" "$CURRY_SOURCE"
+  fi
+
+  local prep_args=(
+    "$CURRY_SOURCE" "$CURRY_REFERENCE"
+    --start-ms "$start_ms" --end-ms "$end_ms"
+    --provenance "$CURRY_MANIFEST"
+    --timing-mode "$timing_mode" --time-scale "$time_scale"
+  )
+  [ -n "$source_url" ] && prep_args+=( --source-url "$source_url" )
+
+  info "1/3  extracting ${start_ms}-${end_ms} ms reference clip + provenance manifest…"
+  if ! ( cd "$BACKEND_DIR" && uv run python scripts/prepare_reference_clip.py "${prep_args[@]}" ); then
+    err "clip extraction failed — the source must be a decodable video whose footage covers roughly ${start_ms}-${end_ms} ms"
+    return 1
+  fi
+
+  info "2/3  building benchmark (pose → phases → metrics → aggregate)…"
+  if ! ( cd "$BACKEND_DIR" && uv run python scripts/build_curry_benchmark.py \
+           --clip "$CURRY_REFERENCE" --out "$CURRY_BENCHMARK" --input-manifest "$CURRY_MANIFEST" ); then
+    err "benchmark build failed — the ${start_ms}-${end_ms} ms window must contain ONE full jump shot,"
+    err "  filmed side-on, whole body + shooting arm + ball visible the entire time."
+    err "  re-run: ./dev.sh benchmark <video> --start-ms N --end-ms N   bracketing the shot"
+    return 1
+  fi
+
+  info "3/3  pinning artifact hashes → infra/artifacts.json (local only — do not commit)…"
+  if ! ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py ) \
+     || ! ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py --check ); then
+    err "manifest pinning failed — see: cd backend && uv run python scripts/release_artifacts.py"
+    return 1
+  fi
+
+  ok "benchmark ready — data/benchmarks/curry_v3.json (timing: $timing_mode)"
+}
+
+# Verify the local-only analysis artifacts and close any gap we can close
+# unattended: rebuild the Curry v3 benchmark from the staged source video, or
+# just re-pin the (gitignored) manifest when the media is already in place.
+# Never fatal — the app still starts and /ready reports whatever is still
+# missing. Run automatically by `dev.sh start`; also `./dev.sh media`.
+ensure_reference_media() {
+  ensure_uv_on_path
+  command -v uv >/dev/null || install_uv
+  backend_deps_ok || sync_backend_deps
+
+  if [ ! -f "$POSE_MODEL" ]; then
+    warn "pose model missing: models/yolo11n-pose.pt"
+    warn "  restore it (git checkout -- models/yolo11n-pose.pt) or fetch it per README"
+  fi
+
+  if [ ! -f "$CURRY_BENCHMARK" ] || [ ! -f "$CURRY_REFERENCE" ]; then
+    if [ -f "$CURRY_SOURCE" ] && [ -f "$POSE_MODEL" ]; then
+      info "Curry v3 benchmark missing — rebuilding from data/raw_videos/curry/curry_v3_source.mp4 …"
+      build_benchmark_artifacts "$CURRY_SOURCE" 0 3000 1 \
+        || warn "automatic rebuild failed — run ./dev.sh benchmark <video>; shot analysis stays disabled (503)"
+      return 0
+    fi
+    warn "Curry v3 reference media missing and no source video to rebuild from"
+    warn "  add data/raw_videos/curry/curry_v3_source.mp4 and re-run, or: ./dev.sh benchmark <video>"
+    warn "  the app still starts — /health is up; /ready and shot analysis return 503 until fixed"
+    return 0
+  fi
+
+  if ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py --check ) >/dev/null 2>&1; then
+    ok "Curry v3 reference media + manifest verified"
+    return 0
+  fi
+
+  info "artifact manifest missing or out of date — re-pinning infra/artifacts.json (local only) …"
+  if ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py ) >/dev/null 2>&1 \
+     && ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py --check ) >/dev/null 2>&1; then
+    ok "infra/artifacts.json re-pinned"
+  else
+    warn "could not re-pin infra/artifacts.json"
+    warn "  run: cd backend && uv run python scripts/release_artifacts.py"
   fi
 }
 
@@ -236,6 +337,7 @@ cmd_start() {
   check_toolchain
   backend_deps_ok || sync_backend_deps
   web_deps_ok     || install_web_deps
+  ensure_reference_media
   mkdir -p "$RUN_DIR"
 
   # backend
@@ -371,55 +473,8 @@ cmd_benchmark() {
   done
 
   [ -n "$source" ] || die "usage: ./dev.sh benchmark <source-video> [options] — see --help"
-  [ -f "$source" ] || die "source video not found: $source"
-  [ "$end_ms" -gt "$start_ms" ] 2>/dev/null || die "--end-ms ($end_ms) must be greater than --start-ms ($start_ms)"
 
-  local timing_mode="realtime"
-  [ "$time_scale" = "1" ] || timing_mode="slow_motion"
-
-  ensure_uv_on_path
-  command -v uv >/dev/null || install_uv
-  backend_deps_ok || sync_backend_deps
-  [ -f "$POSE_MODEL" ] || die "pose model missing: models/yolo11n-pose.pt — see README to fetch it"
-
-  mkdir -p "$CURRY_DIR" "$(dirname "$CURRY_BENCHMARK")"
-
-  # Stage the source at the canonical path (prepare_reference_clip refuses to
-  # read and write the same file, so the source must be distinct from the clip).
-  local src_abs; src_abs="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
-  if [ "$src_abs" != "$CURRY_SOURCE" ]; then
-    info "staging source → data/raw_videos/curry/curry_v3_source.mp4"
-    cp "$src_abs" "$CURRY_SOURCE"
-  fi
-
-  local prep_args=(
-    "$CURRY_SOURCE" "$CURRY_REFERENCE"
-    --start-ms "$start_ms" --end-ms "$end_ms"
-    --provenance "$CURRY_MANIFEST"
-    --timing-mode "$timing_mode" --time-scale "$time_scale"
-  )
-  [ -n "$source_url" ] && prep_args+=( --source-url "$source_url" )
-
-  info "1/3  extracting ${start_ms}-${end_ms} ms reference clip + provenance manifest…"
-  if ! ( cd "$BACKEND_DIR" && uv run python scripts/prepare_reference_clip.py "${prep_args[@]}" ); then
-    die "clip extraction failed (see the error above) — the source must be a decodable video whose footage covers roughly ${start_ms}-${end_ms} ms"
-  fi
-
-  info "2/3  building benchmark (pose → phases → metrics → aggregate)…"
-  if ! ( cd "$BACKEND_DIR" && uv run python scripts/build_curry_benchmark.py \
-           --clip "$CURRY_REFERENCE" --out "$CURRY_BENCHMARK" --input-manifest "$CURRY_MANIFEST" ); then
-    err "benchmark build failed."
-    err "  the ${start_ms}-${end_ms} ms window must contain ONE full jump shot, filmed"
-    err "  side-on, with the shooter's whole body + arm + ball visible the entire time."
-    err "  re-run with --start-ms/--end-ms bracketing the shot in your clip."
-    exit 1
-  fi
-
-  info "3/3  pinning artifact hashes → infra/artifacts.json (local only — do not commit)…"
-  ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py )
-  ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py --check )
-
-  ok "benchmark ready — data/benchmarks/curry_v3.json (timing: $timing_mode)"
+  build_benchmark_artifacts "$source" "$start_ms" "$end_ms" "$time_scale" "$source_url" || exit 1
 
   if pid_alive "$(read_pid "$API_PID_FILE")"; then
     info "restarting backend to pick up the new benchmark…"
@@ -445,6 +500,7 @@ main() {
     status|ps)       cmd_status ;;
     restart)         cmd_restart ;;
     logs|tail)       cmd_logs ;;
+    media|check-media) ensure_reference_media ;;
     benchmark|bench) shift; cmd_benchmark "$@" ;;
     ""|-h|--help|help) usage ;;
     *) err "unknown command: $1"; echo; usage; exit 2 ;;
