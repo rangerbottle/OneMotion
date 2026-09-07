@@ -271,6 +271,7 @@ cmd_start() {
     (
       cd "$WEB_DIR" &&
       NEXT_PUBLIC_API_BASE="$API_BASE" ONEMOTION_API_BASE="$API_SSR_BASE" \
+      ONEMOTION_PUBLIC_HOST="$PUBLIC_HOST" \
         exec npm run dev -- --hostname "$WEB_BIND" --port "$WEB_PORT"
     ) >"$WEB_LOG" 2>&1 &
     echo $! >"$WEB_PID_FILE"
