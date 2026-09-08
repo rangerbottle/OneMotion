@@ -40,6 +40,7 @@ models/
 # Temp data lock
 data/.locks/
 
-# artifact data
+# Local artifact manifest — generated from the local-only media by
+# scripts/release_artifacts.py (run automatically by `./dev.sh start`).
 infra/artifacts.json
 

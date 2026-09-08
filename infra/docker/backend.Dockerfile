@@ -19,7 +19,12 @@ RUN apt-get update \
 WORKDIR /srv/backend
 COPY --from=builder /srv/backend/.venv ./.venv
 COPY --chown=onemotion:onemotion backend/app ./app
-COPY --chown=onemotion:onemotion infra/artifacts.json /srv/infra/artifacts.json
+
+# The pose model, curry_v3 benchmark, reference clip, and their checksum manifest
+# (infra/artifacts.json) are local-only and gitignored — they are never baked
+# into the image. compose.yaml bind-mounts all four at runtime; /ready reports
+# 503 until they are present. ONEMOTION_ARTIFACT_MANIFEST points at the mount.
+RUN mkdir -p /srv/infra && chown onemotion:onemotion /srv/infra
 
 USER onemotion
 EXPOSE 8000
