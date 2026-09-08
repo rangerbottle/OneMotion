@@ -28,6 +28,10 @@ def release(manifest_path: Path) -> None:
         "notes": "Reference media must not be redistributed until its reuse rights are confirmed.",
         "artifacts": entries,
     }, indent=2) + "\n")
+    # atomic_write lands 0600 (tempfile default); the manifest is non-sensitive
+    # (paths + sizes + checksums) and compose.yaml bind-mounts it read-only into
+    # the API container, which runs as a different uid and must be able to read it.
+    manifest_path.chmod(0o644)
 
 
 def main():
