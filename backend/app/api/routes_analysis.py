@@ -25,6 +25,7 @@ from app.core.storage import analysis_lock, atomic_write as _atomic_write
 from app.core.retention import media_expired
 from app.core.video import AnalysisBusy, MAX_CLIP_DURATION_MS, inference_slot, validate_video
 from app.pose import get_backend
+from app.pose.ball_detector import track_window
 from app.schemas.analysis import (
     AnalysisQuality,
     AnalysisResult,
@@ -63,7 +64,7 @@ def _load_result(cfg: Settings, analysis_id: str) -> AnalysisResult:
     path = _result_path(cfg, analysis_id)
     if not path.is_file():
         raise HTTPException(404, f"no analysis '{analysis_id}'")
-    result = AnalysisResult.model_validate(json.loads(path.read_text()))
+    result = AnalysisResult.model_validate(json.loads(path.read_text(encoding="utf-8")))
     if result.media_expires_at is None:
         result.media_expires_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc) + timedelta(hours=cfg.media_ttl_hours)
     return result
@@ -190,6 +191,7 @@ def create_analysis(
                 if sequence.frames[-1].t_ms - sequence.frames[0].t_ms > MAX_CLIP_DURATION_MS:
                     raise ValueError("clip exceeds 12 seconds — upload one shot only")
                 phases = segment(sequence)
+                sequence.ball_track = track_window(cfg, video_path, phases)
                 player_metrics = compute_all(sequence, phases)
                 evidence = measurement_evidence(sequence, phases)
                 capture_quality = assess_capture(sequence, phases)
@@ -248,7 +250,7 @@ def _active_result_locked(cfg: Settings, analysis_id: str) -> AnalysisResult:
             410,
             "legacy analysis cannot be migrated because its pose data has expired",
         )
-    sequence = ShotSequence.model_validate_json(keypoints_path.read_text())
+    sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
     if is_active:
         result = base.model_copy(
             update={"capture_quality": assess_capture(sequence, base.phases)}
@@ -305,7 +307,7 @@ def replay(analysis_id: str, cfg: Cfg, template_id: str | None = None) -> Replay
     template = _resolve_template(cfg, template_id)
     keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
     if keypoints_path.is_file():
-        player_sequence = ShotSequence.model_validate_json(keypoints_path.read_text())
+        player_sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
     elif base.player_sequence is not None:
         player_sequence = base.player_sequence
     else:

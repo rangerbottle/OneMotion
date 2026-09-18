@@ -94,6 +94,7 @@ test("independent replay stops at the window and paused overlays redraw", async 
   expect(await page.locator("video").first().evaluate((video: HTMLVideoElement) => video.currentTime)).toBe(.4);
   await page.getByRole("checkbox", {name:"Skeleton", exact:true}).uncheck();
   await page.getByRole("checkbox", {name:"Angles", exact:true}).uncheck();
+  await page.getByRole("checkbox", {name:"Ball", exact:true}).uncheck();
   const coloredPixels = () => page.locator("canvas").first().evaluate((canvas: HTMLCanvasElement) =>
     canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data.some(value => value !== 0));
   await expect.poll(coloredPixels).toBe(false);

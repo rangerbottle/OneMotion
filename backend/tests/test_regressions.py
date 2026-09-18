@@ -37,6 +37,8 @@ def setup_analysis(tmp_path, monkeypatch):
     monkeypatch.setattr(routes, "validate_video", lambda *_: None)
     monkeypatch.setattr(routes, "get_backend", lambda *_: Mock(estimate_video=lambda _: seq))
     monkeypatch.setattr(routes, "segment", lambda _: segments)
+    from app.pose.ball_detector import unavailable_track
+    monkeypatch.setattr(routes, "track_window", lambda *_: unavailable_track(0, 1, "test: no ball model"))
     return cfg, seq, segments, template
 
 

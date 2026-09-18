@@ -6,9 +6,11 @@ import {
   ApiError,
   responseError,
   getReplay,
+  type BallTrack,
   type BiomechanicsFrame,
   type DerivedValue,
   type PhaseName,
+  type PhaseSegment,
   type PoseFrame,
   type ReplayPayload,
   type ReplayWindow,
@@ -38,6 +40,13 @@ const EMPTY_DERIVED: DerivedValue = {
 type Side = "player" | "template";
 type Mode = "independent" | "realtime_locked";
 type Anchor = "dip" | "release";
+
+type Trajectory = {
+  fromMs: number;
+  toMs: number;
+  wrist: string;
+  degraded: boolean;
+};
 
 type VideoFrameMetadataLite = { mediaTime: number };
 type FrameVideo = HTMLVideoElement & {
@@ -119,6 +128,91 @@ function drawJointArc(
   context.restore();
 }
 
+function drawBallTrack(
+  context: CanvasRenderingContext2D,
+  track: BallTrack,
+  upToMs: number,
+) {
+  const { width, height } = context.canvas;
+  const visible = track.frames.filter(
+    (detection) => detection.t_ms <= upToMs && detection.x !== null && detection.y !== null,
+  );
+  context.save();
+  context.shadowBlur = 0;
+  context.strokeStyle = "#fb923c";
+  context.fillStyle = "#fb923c";
+  context.lineWidth = Math.max(2, width / 320);
+  context.globalAlpha = 0.9;
+  context.beginPath();
+  let pen = false;
+  for (const detection of track.frames) {
+    if (detection.t_ms > upToMs) break;
+    // Missed detections break the path instead of being interpolated.
+    if (detection.x === null || detection.y === null) {
+      pen = false;
+      continue;
+    }
+    const x = detection.x * width;
+    const y = detection.y * height;
+    if (pen) context.lineTo(x, y);
+    else context.moveTo(x, y);
+    pen = true;
+  }
+  context.stroke();
+  context.globalAlpha = 1;
+  for (const detection of visible) {
+    context.beginPath();
+    context.arc(detection.x! * width, detection.y! * height, Math.max(2.5, width / 260), 0, Math.PI * 2);
+    context.fill();
+  }
+  const current = visible[visible.length - 1];
+  if (current) {
+    const radius = Math.max(6, (current.radius ?? 0.03) * width);
+    context.beginPath();
+    context.arc(current.x! * width, current.y! * height, radius, 0, Math.PI * 2);
+    context.lineWidth = Math.max(2.5, width / 220);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawTrajectory(
+  context: CanvasRenderingContext2D,
+  frames: PoseFrame[],
+  trajectory: Trajectory,
+  upToMs: number,
+  color: string,
+) {
+  const endMs = Math.min(trajectory.toMs, upToMs);
+  if (endMs <= trajectory.fromMs) return;
+  const { width, height } = context.canvas;
+  context.save();
+  context.strokeStyle = color;
+  context.lineWidth = Math.max(2, width / 320);
+  context.shadowBlur = 0;
+  context.globalAlpha = 0.85;
+  if (trajectory.degraded) context.setLineDash([8, 6]);
+  context.beginPath();
+  let pen = false;
+  for (const frame of frames) {
+    if (frame.t_ms < trajectory.fromMs) continue;
+    if (frame.t_ms > endMs) break;
+    const point = frame.keypoints.find((keypoint) => keypoint.name === trajectory.wrist);
+    // Low-confidence frames break the path instead of being interpolated.
+    if (!point || point.confidence < CONF_MIN) {
+      pen = false;
+      continue;
+    }
+    const x = point.x * width;
+    const y = point.y * height;
+    if (pen) context.lineTo(x, y);
+    else context.moveTo(x, y);
+    pen = true;
+  }
+  context.stroke();
+  context.restore();
+}
+
 function drawOverlay(
   canvas: HTMLCanvasElement,
   frame: PoseFrame,
@@ -126,6 +220,8 @@ function drawOverlay(
   color: string,
   showSkeleton: boolean,
   showData: boolean,
+  trajectory: { spec: Trajectory; frames: PoseFrame[] } | null,
+  ballTrack: BallTrack | null,
 ) {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -135,6 +231,14 @@ function drawOverlay(
   context.lineCap = "round";
   context.shadowColor = "rgba(0, 0, 0, .75)";
   context.shadowBlur = Math.max(2, width / 300);
+
+  if (trajectory) {
+    drawTrajectory(context, trajectory.frames, trajectory.spec, frame.t_ms, color);
+  }
+
+  if (ballTrack) {
+    drawBallTrack(context, ballTrack, frame.t_ms);
+  }
 
   if (showSkeleton) {
     context.strokeStyle = color;
@@ -218,6 +322,8 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   const [playing, setPlaying] = useState<Record<Side, boolean>>({ player: false, template: false });
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [showData, setShowData] = useState(true);
+  const [showTrajectory, setShowTrajectory] = useState(true);
+  const [showBall, setShowBall] = useState(true);
   const playerVideo = useRef<HTMLVideoElement>(null);
   const templateVideo = useRef<HTMLVideoElement>(null);
   const playerCanvas = useRef<HTMLCanvasElement>(null);
@@ -298,13 +404,51 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
         };
   }, [replay]);
 
+  const trajectories = useMemo((): Record<Side, Trajectory | null> => {
+    const empty = { player: null, template: null };
+    if (!replay) return empty;
+    const build = (phases: PhaseSegment[], biomechanics: BiomechanicsFrame[]): Trajectory | null => {
+      const dip = phases.find((phase) => phase.phase === "dip");
+      const release = phases.find((phase) => phase.phase === "release");
+      if (!dip || !release) return null;
+      const fromMs = dip.start_ms;
+      const toMs = release.anchor_ms ?? release.start_ms;
+      if (toMs <= fromMs) return null;
+      const side = biomechanics.find((frame) => frame.t_ms >= fromMs)?.shooting_side ?? "right";
+      return {
+        fromMs,
+        toMs,
+        wrist: `${side}_wrist`,
+        degraded: dip.degraded || release.degraded,
+      };
+    };
+    return {
+      player: build(replay.player_phases, replay.player_biomechanics),
+      template: build(replay.template_phases, replay.template_biomechanics),
+    };
+  }, [replay]);
+
   const renderSide = useCallback((side: Side, timeMs: number) => {
     const data = sideData(side);
     if (!data?.canvas) return;
     const frame = itemAt(data.sequence.frames, timeMs);
     const biomechanics = itemAt(data.biomechanics, timeMs);
-    if (frame) drawOverlay(data.canvas, frame, biomechanics, data.color, showSkeleton, showData);
-  }, [showData, showSkeleton, sideData]);
+    const spec = showTrajectory ? trajectories[side] : null;
+    const track = data.sequence.ball_track;
+    const ballTrack = showBall && track?.available ? track : null;
+    if (frame) {
+      drawOverlay(
+        data.canvas,
+        frame,
+        biomechanics,
+        data.color,
+        showSkeleton,
+        showData,
+        spec ? { spec, frames: data.sequence.frames } : null,
+        ballTrack,
+      );
+    }
+  }, [showBall, showData, showSkeleton, showTrajectory, sideData, trajectories]);
 
   useEffect(() => {
     for (const side of ["player", "template"] as Side[]) {
@@ -630,6 +774,16 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
             <input type="checkbox" checked={showData} onChange={(event) => setShowData(event.target.checked)} className="size-4 accent-foreground" />
             Angles
           </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={showTrajectory} onChange={(event) => setShowTrajectory(event.target.checked)} className="size-4 accent-foreground" />
+            Trajectory
+          </label>
+          {replay.player_sequence.ball_track?.available || replay.template_sequence.ball_track?.available ? (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={showBall} onChange={(event) => setShowBall(event.target.checked)} className="size-4 accent-foreground" />
+              Ball
+            </label>
+          ) : null}
         </div>
       </div>
 

@@ -9,7 +9,7 @@ def verify_manifest(manifest_path: Path, resolved_paths: dict[str, Path] | None 
     if not manifest_path.is_file():
         return [f"artifact manifest missing: {manifest_path}"]
     try:
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return [f"artifact manifest is invalid: {exc}"]
     if not isinstance(manifest, dict) or not isinstance(manifest.get("artifacts"), list) or not manifest["artifacts"]:

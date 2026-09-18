@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     data_dir: Path = REPO_ROOT / "data"
     pose_backend: Literal["rfdetr", "mediapipe", "yolo"] = "yolo"
     model_path: Path = REPO_ROOT / "models" / "yolo11n-pose.pt"
+    ball_model_path: Path = REPO_ROOT / "models" / "yolo11n.pt"
+    ball_min_conf: float = Field(default=0.25, ge=0.0, le=1.0)
     artifact_manifest: Path = REPO_ROOT / "infra" / "artifacts.json"
     media_ttl_hours: int = Field(default=24, ge=1)
     analysis_concurrency: int = Field(default=1, ge=1, le=4)

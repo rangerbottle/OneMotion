@@ -58,6 +58,28 @@ class PoseFrame(BaseModel):
     keypoints: list[Keypoint]
 
 
+class BallDetection(BaseModel):
+    """Ball position for one video frame; x/y stay None when not detected."""
+
+    frame_idx: int
+    t_ms: int
+    x: float | None = Field(default=None, ge=0.0, le=1.0)
+    y: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+    # Bounding-box radius normalized by frame width, for overlay rendering.
+    radius: float | None = Field(default=None, ge=0.0)
+
+
+class BallTrack(BaseModel):
+    """Per-frame ball positions over the lift → release window."""
+
+    available: bool
+    reason: str | None = None
+    start_frame: int
+    end_frame: int
+    frames: list[BallDetection] = []
+
+
 class ShotSequence(BaseModel):
     clip_id: str
     fps: float = Field(gt=0)
@@ -66,6 +88,7 @@ class ShotSequence(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     frames: list[PoseFrame]
+    ball_track: BallTrack | None = None
 
     @model_validator(mode="after")
     def validate_timeline(self) -> "ShotSequence":

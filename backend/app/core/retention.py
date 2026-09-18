@@ -28,7 +28,7 @@ def cleanup_expired(cfg: Settings) -> int:
             if not acquired:
                 continue
             try:
-                payload = json.loads(result_path.read_text())
+                payload = json.loads(result_path.read_text(encoding="utf-8"))
                 expires = payload.get("media_expires_at")
                 if expires is None:
                     expires = datetime.fromtimestamp(result_path.stat().st_mtime + ttl, timezone.utc).isoformat()

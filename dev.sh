@@ -151,6 +151,7 @@ install_web_deps() {
 
 check_reference_media() {
   [ -f "$POSE_MODEL" ] && ok "pose model present" || warn "pose model missing: models/yolo11n-pose.pt (see README)"
+  [ -f "$REPO_ROOT/models/yolo11n.pt" ] || warn "ball model missing: models/yolo11n.pt — ball trajectory overlay disabled (optional)"
   if [ -f "$CURRY_BENCHMARK" ] && [ -f "$CURRY_REFERENCE" ]; then
     ok "Curry v3 reference media present"
   else

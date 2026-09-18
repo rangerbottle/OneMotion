@@ -111,12 +111,30 @@ export type PoseFrame = {
   keypoints: Keypoint[];
 };
 
+export type BallDetection = {
+  frame_idx: number;
+  t_ms: number;
+  x: number | null;
+  y: number | null;
+  confidence: number;
+  radius: number | null;
+};
+
+export type BallTrack = {
+  available: boolean;
+  reason: string | null;
+  start_frame: number;
+  end_frame: number;
+  frames: BallDetection[];
+};
+
 export type ShotSequence = {
   clip_id: string;
   fps: number;
   width: number;
   height: number;
   frames: PoseFrame[];
+  ball_track?: BallTrack | null;
 };
 
 export type ReplayPayload = {

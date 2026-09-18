@@ -477,7 +477,39 @@
           }
         ]
       }
-    ]
+    ],
+    "ball_track": {
+      "available": true,
+      "reason": null,
+      "start_frame": 2,
+      "end_frame": 4,
+      "frames": [
+        {
+          "frame_idx": 2,
+          "t_ms": 200,
+          "x": 0.5,
+          "y": 0.62,
+          "confidence": 0.83,
+          "radius": 0.05
+        },
+        {
+          "frame_idx": 3,
+          "t_ms": 300,
+          "x": 0.52,
+          "y": 0.45,
+          "confidence": 0.78,
+          "radius": 0.05
+        },
+        {
+          "frame_idx": 4,
+          "t_ms": 400,
+          "x": null,
+          "y": null,
+          "confidence": 0.0,
+          "radius": null
+        }
+      ]
+    }
   },
   "template_sequence": {
     "clip_id": "synthetic",
@@ -953,7 +985,39 @@
           }
         ]
       }
-    ]
+    ],
+    "ball_track": {
+      "available": true,
+      "reason": null,
+      "start_frame": 2,
+      "end_frame": 4,
+      "frames": [
+        {
+          "frame_idx": 2,
+          "t_ms": 200,
+          "x": 0.55,
+          "y": 0.62,
+          "confidence": 0.83,
+          "radius": 0.05
+        },
+        {
+          "frame_idx": 3,
+          "t_ms": 300,
+          "x": 0.5700000000000001,
+          "y": 0.45,
+          "confidence": 0.78,
+          "radius": 0.05
+        },
+        {
+          "frame_idx": 4,
+          "t_ms": 400,
+          "x": null,
+          "y": null,
+          "confidence": 0.0,
+          "radius": null
+        }
+      ]
+    }
   },
   "player_phases": [
     {

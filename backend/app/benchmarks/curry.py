@@ -127,9 +127,14 @@ def build_benchmark(
         canonical_phases=all_phases[canonical_id],
     )
     canonical_path = next(path for path in clips if path.stem == canonical_id)
+    from app.core.config import settings
+    from app.pose.ball_detector import track_window
+    canonical_sequence = sequences[canonical_id]
+    canonical_sequence.ball_track = track_window(
+        settings, canonical_path, all_phases[canonical_id]
+    )
     source = sources.get(canonical_id)
     realtime = bool(sources) and all(item.timing_mode == "realtime" for item in sources.values())
-    from app.core.config import settings
     algorithm_files = sorted((Path(__file__).parents[1] / "analysis").glob("*.py"))
     import hashlib
     algorithm_hash = hashlib.sha256(b"".join(path.name.encode() + path.read_bytes() for path in algorithm_files)).hexdigest()
@@ -148,6 +153,7 @@ def build_benchmark(
             "clips": [item.model_dump() for item in sources.values()],
             "canonical_sha256": file_sha256(canonical_path),
             "model_sha256": file_sha256(settings.model_path) if settings.model_path.is_file() else None,
+            "ball_model_sha256": file_sha256(settings.ball_model_path) if settings.ball_model_path.is_file() else None,
             "algorithm_sha256": algorithm_hash,
         },
     })
@@ -162,4 +168,4 @@ def load_benchmark(path: Path) -> BenchmarkProfile:
         raise FileNotFoundError(
             f"no benchmark at {path} — run scripts/build_curry_benchmark.py"
         )
-    return BenchmarkProfile.model_validate(json.loads(path.read_text()))
+    return BenchmarkProfile.model_validate(json.loads(path.read_text(encoding="utf-8")))

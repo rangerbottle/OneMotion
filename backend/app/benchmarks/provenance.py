@@ -33,7 +33,7 @@ def file_sha256(path: Path) -> str:
 
 
 def load_sources(manifest: Path, clips: list[Path]) -> dict[str, ReferenceClip]:
-    entries = [ReferenceClip.model_validate(item) for item in json.loads(manifest.read_text())["clips"]]
+    entries = [ReferenceClip.model_validate(item) for item in json.loads(manifest.read_text(encoding="utf-8"))["clips"]]
     resolved = [(manifest.parent / item.path).resolve() for item in entries]
     requested = [clip.resolve() for clip in clips]
     if len(set(resolved)) != len(resolved) or set(resolved) != set(requested):
