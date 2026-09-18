@@ -8,6 +8,7 @@ services:
     environment:
       ONEMOTION_DATA_DIR: /srv/data
       ONEMOTION_MODEL_PATH: /srv/models/yolo11n-pose.pt
+      ONEMOTION_BALL_MODEL_PATH: /srv/models/yolo11n.pt
       ONEMOTION_ARTIFACT_MANIFEST: /srv/infra/artifacts.json
       ONEMOTION_POSE_BACKEND: yolo
       ONEMOTION_ALLOWED_ORIGINS: http://localhost:${ONEMOTION_PORT:-3000}
