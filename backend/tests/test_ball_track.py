@@ -90,3 +90,28 @@ def test_track_window_survives_detection_errors(tmp_path, monkeypatch):
     )
     track = track_window(cfg, tmp_path / "clip.mp4", phases())
     assert not track.available and "decode exploded" in track.reason
+
+
+def test_track_window_never_raises_on_missing_phases(tmp_path):
+    cfg = Settings(data_dir=tmp_path, ball_model_path=tmp_path / "missing.pt")
+    track = track_window(cfg, tmp_path / "clip.mp4", [])
+    assert not track.available and "lift/release" in track.reason
+
+
+def test_detect_window_beyond_eof_is_unavailable(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    write_clip(clip)
+    detector = fake_detector([])
+    track = detector.detect_window(clip, 50, 60)
+    assert not track.available and track.frames == []
+
+
+def test_tempo_rejects_inverted_phase_order():
+    from app.analysis.metrics import UnreliableData, shot_tempo_s
+    from test_biomechanics import sequence
+
+    inverted = phases()
+    inverted[1] = inverted[1].model_copy(update={"anchor_frame": 2})  # load after release
+    inverted[3] = inverted[3].model_copy(update={"anchor_frame": 1})
+    with pytest.raises(UnreliableData):
+        shot_tempo_s(sequence(), inverted)

@@ -14,12 +14,22 @@ if sys.platform == "win32":
 
     def _lock(handle, *, blocking: bool) -> None:
         handle.seek(0)
-        try:
-            msvcrt.locking(
-                handle.fileno(), msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK, 1
-            )
-        except OSError as exc:
-            raise BlockingIOError(exc.errno, str(exc)) from exc
+        if blocking:
+            # msvcrt LK_LOCK gives up after ~10 s under contention and raises;
+            # keep retrying so a blocking caller never enters the critical
+            # section unlocked (analysis creation can hold a stripe for the
+            # full analysis timeout).
+            while True:
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                    return
+                except OSError:
+                    time.sleep(0.05)
+        else:
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise BlockingIOError(exc.errno, str(exc)) from exc
 
     def _unlock(handle) -> None:
         handle.seek(0)
@@ -72,6 +82,10 @@ def analysis_lock(data_dir: Path, analysis_id: str, *, blocking: bool = True):
         try:
             _lock(handle, blocking=blocking)
         except BlockingIOError:
+            if blocking:
+                # Callers do not check the yielded flag — never let a
+                # blocking caller into the critical section unlocked.
+                raise
             yield False
             return
         try:

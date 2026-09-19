@@ -109,7 +109,10 @@ def shot_tempo_s(seq: ShotSequence, phases: list[PhaseSegment]) -> float:
     release_phase = phase_of(phases, "release")
     load = load_phase.anchor_frame if load_phase.anchor_frame is not None else load_phase.start_frame
     release = release_phase.anchor_frame if release_phase.anchor_frame is not None else release_phase.start_frame
-    return float((seq.frames[release].t_ms - seq.frames[load].t_ms) / 1000.0)
+    tempo = (seq.frames[release].t_ms - seq.frames[load].t_ms) / 1000.0
+    if tempo <= 0:
+        raise UnreliableData("release is not after the dip bottom — phase order inverted")
+    return float(tempo)
 
 
 def knee_flexion_deg(seq: ShotSequence, phases: list[PhaseSegment]) -> float:

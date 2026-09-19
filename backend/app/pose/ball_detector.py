@@ -10,6 +10,7 @@ actual evidence (docs/ARCHITECTURE.md confidence gating).
 
 from functools import lru_cache
 from pathlib import Path
+import time
 
 import numpy as np
 
@@ -28,35 +29,73 @@ class BallDetector:
         self._imgsz = imgsz
 
     def detect_window(
-        self, video_path: Path, start_frame: int, end_frame: int
+        self, video_path: Path, start_frame: int, end_frame: int, timeout_s: float = 120
     ) -> BallTrack:
         import cv2
 
+        from app.core.video import check_decode_budget
+
         cap = cv2.VideoCapture(str(video_path))
         frames: list[BallDetection] = []
+        started = time.monotonic()
         try:
             if not cap.isOpened():
                 raise ValueError(f"cannot decode video: {video_path}")
             fps = cap.get(cv2.CAP_PROP_FPS)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-            idx = start_frame
+            if not np.isfinite(fps) or fps <= 0:
+                fps = 30.0  # clips with broken metadata fall back to nominal timing
+            idx = self._seek(cap, start_frame)
             while idx <= end_frame:
                 ok, bgr = cap.read()
                 if not ok:
                     break
                 timestamp = cap.get(cv2.CAP_PROP_POS_MSEC)
                 if not np.isfinite(timestamp) or timestamp < 0:
-                    timestamp = idx * 1000.0 / max(fps, 1.0)
-                frames.append(self._detect_bgr(bgr, idx, int(timestamp)))
+                    timestamp = idx * 1000.0 / fps
+                t_ms = int(timestamp)
+                check_decode_budget(idx, t_ms, started, timeout_s)
+                frames.append(self._detect_bgr(bgr, idx, t_ms))
                 idx += 1
         finally:
             cap.release()
+        if not frames:
+            return BallTrack(
+                available=False,
+                reason="no decodable frames in the lift→release window",
+                start_frame=start_frame,
+                end_frame=end_frame,
+            )
         return BallTrack(
             available=True,
             start_frame=start_frame,
             end_frame=end_frame,
             frames=frames,
         )
+
+    @staticmethod
+    def _seek(cap, start_frame: int) -> int:
+        """Position the capture at start_frame; return the real frame index.
+
+        POS_FRAMES seeks are codec-dependent, so verify the landing spot and
+        fall back to a sequential walk — otherwise every detection would be
+        mislabeled by the seek offset.
+        """
+        import cv2
+
+        if start_frame <= 0:
+            return 0
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        landed = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        if landed == start_frame:
+            return landed
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        idx = 0
+        while idx < start_frame:
+            ok, _ = cap.read()
+            if not ok:
+                break
+            idx += 1
+        return idx
 
     def _detect_bgr(self, bgr: np.ndarray, frame_idx: int, t_ms: int) -> BallDetection:
         h, w = bgr.shape[:2]
@@ -117,8 +156,11 @@ def unavailable_track(start_frame: int, end_frame: int, reason: str) -> BallTrac
 
 def track_window(cfg: Settings, video_path: Path, phases) -> BallTrack:
     """Ball track over the lift → release window; never raises into analysis."""
-    lift = next(phase for phase in phases if phase.phase == "lift")
-    release = next(phase for phase in phases if phase.phase == "release")
+    try:
+        lift = next(phase for phase in phases if phase.phase == "lift")
+        release = next(phase for phase in phases if phase.phase == "release")
+    except StopIteration:
+        return unavailable_track(0, 0, "phase segmentation lacks lift/release")
     start_frame, end_frame = lift.start_frame, release.anchor_frame
     detector = get_ball_detector(cfg)
     if detector is None:
@@ -126,6 +168,8 @@ def track_window(cfg: Settings, video_path: Path, phases) -> BallTrack:
             start_frame, end_frame, "ball model not installed (models/yolo11n.pt)"
         )
     try:
-        return detector.detect_window(video_path, start_frame, end_frame)
+        return detector.detect_window(
+            video_path, start_frame, end_frame, timeout_s=cfg.analysis_timeout_s
+        )
     except Exception as exc:  # detection must not fail the analysis
         return unavailable_track(start_frame, end_frame, f"ball detection failed: {exc}")

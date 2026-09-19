@@ -177,8 +177,13 @@ def segment(sequence: ShotSequence) -> list[PhaseSegment]:
 
     # Load window: ±LOAD_WINDOW_S around the dip bottom, by source timestamps.
     load_time_lo, load_time_hi = time_window(load, LOAD_WINDOW_S, LOAD_WINDOW_S)
-    load_lo = max(load_time_lo, dip_start)
     load_hi = min(load_time_hi, release)
+    load_lo = min(max(load_time_lo, dip_start), load_hi)
+    # A very quick shot can put the release search at or before the detected
+    # dip bottom. The phase order is then meaningless (negative tempo), so the
+    # load/lift phases are marked degraded and tempo evidence drops out
+    # through the load gate instead of scoring an inverted interval.
+    inverted = release <= load
 
     # Follow-through ends when the shooting wrist drops below its elbow. This
     # moving anatomical reference survives camera motion better than comparing
@@ -221,7 +226,7 @@ def segment(sequence: ShotSequence) -> list[PhaseSegment]:
             end_ms=sequence.frames[b].t_ms,
             anchor_frame=anchor,
             anchor_ms=sequence.frames[anchor].t_ms,
-            degraded=degraded(a, b, extra=(dip_occluded and p in ("dip", "load"))),
+            degraded=degraded(a, b, extra=(dip_occluded and p in ("dip", "load")) or (inverted and p in ("load", "lift"))),
             censored=censored,
         )
         for p, a, b, anchor, censored in bounds

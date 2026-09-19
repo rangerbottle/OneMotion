@@ -62,6 +62,18 @@ def test_analysis_round_trip_comparison_replay_and_delete(setup_analysis):
     assert not list(cfg.keypoints_dir.glob("*"))
 
 
+def test_ball_track_persists_to_replay(setup_analysis, monkeypatch):
+    from app.schemas.pose import BallDetection, BallTrack
+    cfg, _, _, _ = setup_analysis
+    track = BallTrack(available=True, start_frame=1, end_frame=2, frames=[
+        BallDetection(frame_idx=1, t_ms=100, x=0.5, y=0.4, confidence=0.9, radius=0.05),
+        BallDetection(frame_idx=2, t_ms=200, x=None, y=None, confidence=0.0),
+    ])
+    monkeypatch.setattr(routes, "track_window", lambda *_: track)
+    created = routes.create_analysis(upload(), cfg)
+    assert routes.replay(created.analysis_id, cfg).player_sequence.ball_track == track
+
+
 def test_comparison_keeps_degraded_metrics_excluded(setup_analysis):
     cfg, _, segments, _ = setup_analysis
     segments[2].degraded = True

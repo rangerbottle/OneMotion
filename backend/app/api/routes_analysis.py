@@ -234,7 +234,7 @@ def _active_result_locked(cfg: Settings, analysis_id: str) -> AnalysisResult:
     is_active = (base.template_id or base.benchmark_version) == ACTIVE_TEMPLATE_ID
     if media_expired(base.media_expires_at):
         # Old reports may contain inline pose data. Never return expired media in JSON.
-        if base.player_sequence is not None:
+        if base.player_sequence is not None or base.benchmark_sequence is not None:
             base = base.model_copy(update={"player_sequence": None, "benchmark_sequence": None})
             _atomic_write(_result_path(cfg, analysis_id), base.model_dump_json(indent=2))
         if not is_active:

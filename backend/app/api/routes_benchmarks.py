@@ -27,4 +27,6 @@ def current_benchmark(
             404,
             "No Curry benchmark yet — run backend/scripts/build_curry_benchmark.py",
         )
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(503, f"benchmark profile is unreadable: {exc}")
     return profile.model_copy(update={"canonical_sequence": None})
