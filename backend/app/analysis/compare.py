@@ -39,6 +39,8 @@ def dtw_align(a: np.ndarray, b: np.ndarray) -> list[tuple[int, int]]:
             )
     path = []
     i, j = n, m
+    if not np.isfinite(cost[i, j]):
+        raise ValueError("series lengths differ beyond the DTW window")
     while i > 0 and j > 0:
         path.append((i - 1, j - 1))
         step = np.argmin([cost[i - 1, j], cost[i, j - 1], cost[i - 1, j - 1]])

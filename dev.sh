@@ -128,7 +128,7 @@ check_toolchain() {
 # ---------------------------------------------------------------------------
 # project dependencies
 # ---------------------------------------------------------------------------
-backend_deps_ok() { [ -x "$BACKEND_DIR/.venv/bin/python" ]; }
+backend_deps_ok() { [ -x "$BACKEND_DIR/.venv/bin/python" ] || [ -f "$BACKEND_DIR/.venv/Scripts/python.exe" ]; }
 web_deps_ok()     { [ -d "$WEB_DIR/node_modules" ] && [ -e "$WEB_DIR/node_modules/.package-lock.json" ]; }
 
 sync_backend_deps() {
@@ -279,7 +279,13 @@ pid_alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
 
 read_pid() { [ -f "$1" ] && cat "$1" 2>/dev/null || true; }
 
-port_pids() { command -v lsof >/dev/null && lsof -ti "tcp:$1" 2>/dev/null || true; }
+port_pids() {
+  if command -v lsof >/dev/null; then
+    lsof -ti "tcp:$1" 2>/dev/null || true
+  elif command -v netstat >/dev/null; then
+    netstat -ano 2>/dev/null | awk -v p=":$1" '$4 ~ p"$" && $6 == "LISTENING" { print $5 }' | sort -u
+  fi
+}
 
 port_busy() { [ -n "$(port_pids "$1")" ]; }
 
@@ -292,7 +298,16 @@ wait_for_http() { # url timeout_seconds
   return 1
 }
 
-kill_pid_tree() { # pid
+kill_pid_tree() { # pid ($! of a Git Bash subshell — MSYS pid on Windows)
+  if [ "$OS" = "Windows_NT" ]; then
+    # Git Bash ships neither pkill nor a POSIX process tree; taskkill //T
+    # kills the Windows process tree, but it wants a Windows PID, so
+    # translate the recorded MSYS PID via `ps -W`.
+    local winpid
+    winpid="$(ps -W 2>/dev/null | awk -v p="$1" '$1 == p { print $4; exit }')"
+    [ -n "$winpid" ] && taskkill //PID "$winpid" //T //F >/dev/null 2>&1 || true
+    return 0
+  fi
   local pid="$1"
   pid_alive "$pid" || return 0
   # children first (npm -> next dev -> workers)
@@ -315,16 +330,22 @@ stop_service() { # name pid_file port
     kill_pid_tree "$pid"
     stopped=1
   fi
-  # backstop: anything still holding the port
+  # backstop: anything still holding the port (netstat pids are native, so
+  # `kill` cannot reach them on Git Bash — use taskkill there)
   local leftover; leftover="$(port_pids "$port")"
   if [ -n "$leftover" ]; then
     info "freeing port $port ($(echo "$leftover" | tr '\n' ' '))…"
-    # shellcheck disable=SC2086
-    kill -TERM $leftover 2>/dev/null || true
-    sleep 1
-    leftover="$(port_pids "$port")"
-    # shellcheck disable=SC2086
-    [ -n "$leftover" ] && kill -KILL $leftover 2>/dev/null || true
+    if [ "$OS" = "Windows_NT" ]; then
+      for p in $leftover; do taskkill //PID "$p" //T //F >/dev/null 2>&1 || true; done
+      sleep 1
+    else
+      # shellcheck disable=SC2086
+      kill -TERM $leftover 2>/dev/null || true
+      sleep 1
+      leftover="$(port_pids "$port")"
+      # shellcheck disable=SC2086
+      [ -n "$leftover" ] && kill -KILL $leftover 2>/dev/null || true
+    fi
     stopped=1
   fi
   rm -f "$pid_file"
@@ -360,6 +381,8 @@ cmd_start() {
     else
       err "backend did not become healthy in 60s — see $API_LOG"
       tail -n 20 "$API_LOG" >&2 || true
+      kill_pid_tree "$(read_pid "$API_PID_FILE")"
+      rm -f "$API_PID_FILE"
       exit 1
     fi
   fi
@@ -383,6 +406,8 @@ cmd_start() {
     else
       err "web did not come up in 120s — see $WEB_LOG"
       tail -n 20 "$WEB_LOG" >&2 || true
+      kill_pid_tree "$(read_pid "$WEB_PID_FILE")"
+      rm -f "$WEB_PID_FILE"
       exit 1
     fi
   fi

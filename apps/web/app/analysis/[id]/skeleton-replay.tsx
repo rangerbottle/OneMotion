@@ -56,6 +56,10 @@ type FrameVideo = HTMLVideoElement & {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
+// Bumped on every retry so a late-resolving media probe from a previous
+// attempt cannot re-attach an error to a reloaded video.
+let mediaProbeGeneration = 0;
+
 function itemAt<T extends { t_ms: number }>(items: T[], timeMs: number): T | null {
   if (!items.length) return null;
   let low = 0;
@@ -361,6 +365,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   }, [analysisId, attempt]);
 
   function retryReplay() {
+    mediaProbeGeneration += 1;
     setError(null);
     setExpired(false);
     setMediaErrors({});
@@ -369,6 +374,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   }
 
   async function mediaFailure(side: Side, url: string) {
+    const generation = mediaProbeGeneration;
     playerVideo.current?.pause();
     templateVideo.current?.pause();
     let expired = false;
@@ -380,6 +386,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
     } catch {
       message = "Could not load the video. Check your connection and retry.";
     }
+    if (generation !== mediaProbeGeneration) return;
     setMediaErrors((current) => ({ ...current, [side]: {message, expired} }));
   }
 
@@ -584,6 +591,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
     }
     try {
       await Promise.all([playerVideo.current?.play(), templateVideo.current?.play()]);
+      setError(null); // a blocked-play warning must not linger once play works
     } catch {
       pauseAll();
       setError("Playback was blocked. Press play again after the videos load.");
@@ -599,6 +607,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
       }
       try {
         await data.video.play();
+        setError(null);
       } catch {
         setError("Playback was blocked. Press play again after the video loads.");
       }

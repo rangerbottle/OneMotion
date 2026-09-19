@@ -26,7 +26,7 @@ from app.schemas.pose import ShotSequence
 
 
 def evaluate(manifest_path: Path, tolerance_ms: float = 100) -> dict:
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not manifest.get("cases"):
         raise ValueError("evaluation requires at least one explicitly labeled case")
     root = manifest_path.parent
@@ -39,7 +39,7 @@ def evaluate(manifest_path: Path, tolerance_ms: float = 100) -> dict:
         path = root / case["sequence"]
         if file_sha256(path) != case["sha256"]:
             raise ValueError(f"evaluation sequence changed: {case['id']}")
-        seq = ShotSequence.model_validate_json(path.read_text())
+        seq = ShotSequence.model_validate_json(path.read_text(encoding="utf-8"))
         started = time.perf_counter()
         phases = segment(seq)
         metrics = compute_all(seq, phases)
@@ -48,7 +48,7 @@ def evaluate(manifest_path: Path, tolerance_ms: float = 100) -> dict:
         elapsed = (time.perf_counter() - started) * 1000
         anchors = {p.phase: seq.frames[p.anchor_frame if p.anchor_frame is not None else p.start_frame].t_ms for p in phases}
         errors = {phase: abs(anchors[phase] - expected) for phase, expected in case.get("expected_phases_ms", {}).items()}
-        false_reliable = [name for name in case.get("expected_unreliable", []) if evidence[name]["reliable"]]
+        false_reliable = [name for name in case.get("expected_unreliable", []) if evidence.get(name, {}).get("reliable")]
         metric_errors = {name: abs(metrics[name] - expected["value"]) if name in metrics else None
                          for name, expected in case.get("expected_metrics", {}).items()}
         metric_pass = all(error is not None and error <= case["expected_metrics"][name]["tolerance"] for name, error in metric_errors.items())

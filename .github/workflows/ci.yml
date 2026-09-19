@@ -19,6 +19,22 @@ jobs:
         working-directory: backend
       - run: uv run pytest -q
         working-directory: backend
+  backend-windows:
+    # The msvcrt lock fallback, atomic_write replace retry and the new Windows
+    # dev-host code paths only execute on win32 — they need a Windows runner
+    # to catch regressions.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.6"
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --frozen
+        working-directory: backend
+      - run: uv run pytest -q
+        working-directory: backend
   web:
     runs-on: ubuntu-latest
     defaults:

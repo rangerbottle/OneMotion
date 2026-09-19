@@ -62,6 +62,8 @@ def cleanup_expired(cfg: Settings) -> int:
                     if path.suffix == ".tmp" or (directory != cfg.analyses_dir and not report.exists()):
                         path.unlink()
                         removed += 1
-                except FileNotFoundError:
+                except (FileNotFoundError, PermissionError):
+                    # Windows holds media files open while a response streams;
+                    # a failed unlink here just means "try again next sweep".
                     pass
     return removed

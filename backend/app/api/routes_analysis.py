@@ -176,15 +176,17 @@ def create_analysis(
     # Hold the same lock used by cleanup until the report commits or rollback completes.
     with analysis_lock(cfg.data_dir, analysis_id):
         try:
+            written = 0
+            with video_path.open("wb") as target:
+                while chunk := video.file.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > MAX_UPLOAD_BYTES:
+                        raise HTTPException(413, "clip exceeds 50 MB")
+                    target.write(chunk)
+            validate_video(video_path)
+            # Take the concurrency slot only after the body is written and
+            # validated — a slow client must not block other analyses' slots.
             with inference_slot(cfg.analysis_concurrency):
-                written = 0
-                with video_path.open("wb") as target:
-                    while chunk := video.file.read(1024 * 1024):
-                        written += len(chunk)
-                        if written > MAX_UPLOAD_BYTES:
-                            raise HTTPException(413, "clip exceeds 50 MB")
-                        target.write(chunk)
-                validate_video(video_path)
                 sequence = get_backend(cfg).estimate_video(video_path)
                 if not sequence.frames:
                     raise ValueError("video contains no decoded frames")
@@ -306,12 +308,15 @@ def replay(analysis_id: str, cfg: Cfg, template_id: str | None = None) -> Replay
         raise HTTPException(410, "skeleton replay data has expired")
     template = _resolve_template(cfg, template_id)
     keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
-    if keypoints_path.is_file():
-        player_sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
-    elif base.player_sequence is not None:
-        player_sequence = base.player_sequence
-    else:
-        raise HTTPException(410, "skeleton replay data has expired")
+    # The retention sweep deletes keypoints while holding the non-blocking
+    # lock, so read it under the same lock or the file can vanish mid-request.
+    with analysis_lock(cfg.data_dir, analysis_id):
+        if keypoints_path.is_file():
+            player_sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
+        elif base.player_sequence is not None:
+            player_sequence = base.player_sequence
+        else:
+            raise HTTPException(410, "skeleton replay data has expired")
     if template.canonical_sequence is None:
         raise HTTPException(404, f"template '{template.version}' has no skeleton data")
     player_window = _replay_window(player_sequence, base.phases)
@@ -395,14 +400,20 @@ def analysis_video(analysis_id: str, cfg: Cfg) -> FileResponse:
     result = _load_result(cfg, analysis_id)
     if media_expired(result.media_expires_at):
         raise HTTPException(410, "source video has expired")
-    matches = [
-        path
-        for path in cfg.uploads_dir.glob(f"{analysis_id}.*")
-        if path.suffix in ALLOWED_EXTENSIONS
-    ]
-    if not matches:
-        raise HTTPException(410, "source video is no longer available")
-    return FileResponse(matches[0], filename=matches[0].name)
+    # Resolve the path under the lock: the retention sweep and delete endpoint
+    # unlink uploads under the same stripe, so this check cannot race them.
+    # (The later open is lazy, but the residual window is one scheduler tick;
+    # retention treats a failed unlink as skippable, not fatal.)
+    with analysis_lock(cfg.data_dir, analysis_id):
+        matches = [
+            path
+            for path in cfg.uploads_dir.glob(f"{analysis_id}.*")
+            if path.suffix in ALLOWED_EXTENSIONS
+        ]
+        if not matches or not matches[0].is_file():
+            raise HTTPException(410, "source video is no longer available")
+        path = matches[0]
+    return FileResponse(path, filename=path.name)
 
 
 @router.delete("/analysis/{analysis_id}", status_code=204)

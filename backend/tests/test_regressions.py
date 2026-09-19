@@ -55,7 +55,7 @@ def test_analysis_round_trip_comparison_replay_and_delete(setup_analysis):
     assert compared.similarity_score == created.similarity_score
     assert compared.feedback == created.feedback
     assert len(routes.replay(created.analysis_id, cfg).player_sequence.frames) == 3
-    assert routes.analysis_video(created.analysis_id, cfg).path.is_file()
+    assert (cfg.uploads_dir / routes.analysis_video(created.analysis_id, cfg).filename).is_file()
     routes.delete_analysis(created.analysis_id, cfg)
     assert not list(cfg.analyses_dir.glob("*.json"))
     assert not list(cfg.uploads_dir.glob("*"))

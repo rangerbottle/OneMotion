@@ -32,7 +32,15 @@ def smoke(source: Settings) -> dict:
         for src, dst in copies.items():
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
-        cfg = Settings(data_dir=root / "data", model_path=copies[source.model_path], artifact_manifest=copies[source.artifact_manifest])
+        cfg = Settings(
+            data_dir=root / "data",
+            model_path=copies[source.model_path],
+            artifact_manifest=copies[source.artifact_manifest],
+            # The ball model is read-only input, not mutable state — resolve it
+            # explicitly so the smoke test's behavior doesn't depend on where
+            # the default path happens to point.
+            ball_model_path=source.ball_model_path if source.ball_model_path.is_file() else root / "models/yolo11n.pt",
+        )
         app = create_app()
         app.dependency_overrides[get_settings] = lambda: cfg
         with TestClient(app) as client:
