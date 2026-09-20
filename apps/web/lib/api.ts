@@ -226,7 +226,13 @@ export async function getReplay(id: string, signal?: AbortSignal): Promise<Repla
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
+  // Milliseconds the server asked us to wait before retrying (429 Retry-After).
+  retryAfterMs: number | null;
+  constructor(status: number, message: string, retryAfterMs: number | null = null) {
+    super(message);
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
+  }
 }
 
 export async function responseError(response: Response): Promise<ApiError> {
@@ -238,6 +244,12 @@ export async function responseError(response: Response): Promise<ApiError> {
     429: "The analysis service is busy. Try again shortly.",
     503: "The analysis service is temporarily unavailable. Please try again later.",
   };
+  let retryAfterMs: number | null = null;
+  const retryAfter = response.headers.get("Retry-After");
+  if (response.status === 429 && retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) retryAfterMs = Math.min(Math.max(seconds * 1000, 500), 15_000);
+  }
   return new ApiError(response.status, defaults[response.status] ??
-    (typeof detail === "string" ? detail : `The request failed (${response.status}). Please try again.`));
+    (typeof detail === "string" ? detail : `The request failed (${response.status}). Please try again.`), retryAfterMs);
 }

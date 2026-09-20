@@ -89,7 +89,13 @@ function drawLabel(
   const height = Math.max(23, context.canvas.width / 26);
   context.fillStyle = "rgba(9, 9, 11, .78)";
   context.beginPath();
-  context.roundRect(x - 6, y - height + 4, width, height, 6);
+  // roundRect needs Chrome 99+/Safari 16+; a missing fallback would kill all
+  // overlay drawing on older engines, not just this label.
+  if (typeof context.roundRect === "function") {
+    context.roundRect(x - 6, y - height + 4, width, height, 6);
+  } else {
+    context.rect(x - 6, y - height + 4, width, height);
+  }
   context.fill();
   context.fillStyle = color;
   context.shadowBlur = 0;

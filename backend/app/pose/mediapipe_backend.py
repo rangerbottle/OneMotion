@@ -69,24 +69,26 @@ class MediaPipePoseBackend:
 
         frames: list[PoseFrame] = []
         idx = 0
-        while True:
-            ok, bgr = cap.read()
-            if not ok:
-                break
-            t_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            result = self._landmarker.detect_for_video(image, t_ms)
-            keypoints = self._to_coco17(result)
-            frames.append(
-                PoseFrame(
-                    frame_idx=idx,
-                    t_ms=t_ms,
-                    keypoints=keypoints or empty_keypoints(),
+        try:
+            while True:
+                ok, bgr = cap.read()
+                if not ok:
+                    break
+                t_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
+                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                result = self._landmarker.detect_for_video(image, t_ms)
+                keypoints = self._to_coco17(result)
+                frames.append(
+                    PoseFrame(
+                        frame_idx=idx,
+                        t_ms=t_ms,
+                        keypoints=keypoints or empty_keypoints(),
+                    )
                 )
-            )
-            idx += 1
-        cap.release()
+                idx += 1
+        finally:
+            cap.release()
 
         if not frames:
             raise ValueError(f"no person detected in any frame: {video_path}")
