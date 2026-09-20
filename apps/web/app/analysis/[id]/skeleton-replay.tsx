@@ -353,6 +353,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
           });
           setReplay(payload);
           setAnchor(initialAnchor);
+          setMode(payload.sync.default_mode);
         }
       })
       .catch((error: unknown) => {
@@ -640,6 +641,11 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
     template: itemAt(replay.template_biomechanics, times.template),
   };
 
+  const ballUnavailableReason = [
+    replay.player_sequence.ball_track,
+    replay.template_sequence.ball_track,
+  ].find((track) => track && !track.available)?.reason;
+
   const panel = (
     side: Side,
     title: string,
@@ -771,6 +777,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
                 setMode(nextMode);
                 if (nextMode === "realtime_locked") alignToAnchor(anchor);
               }}
+              disabled={!!replay.sync.unavailable_reason}
               className="size-4 accent-foreground"
             />
             Sync clips
@@ -799,6 +806,9 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
       {error ? <p className="mb-3 text-sm text-amber-600">{error}</p> : null}
       {replay.sync.unavailable_reason ? (
         <p className="mb-3 text-sm text-amber-600">Sync confidence warning: {replay.sync.unavailable_reason}</p>
+      ) : null}
+      {ballUnavailableReason ? (
+        <p className="mb-3 text-xs text-zinc-500">Ball trajectory unavailable: {ballUnavailableReason}</p>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

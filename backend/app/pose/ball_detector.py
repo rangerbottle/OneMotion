@@ -133,15 +133,18 @@ class BallDetector:
 
 
 @lru_cache
-def _build_detector(weights_path: str, min_conf: float) -> BallDetector | None:
-    path = Path(weights_path)
-    if not path.is_file():
-        return None
-    return BallDetector(path, min_conf)
+def _build_detector(weights_path: str, min_conf: float) -> BallDetector:
+    return BallDetector(Path(weights_path), min_conf)
 
 
 def get_ball_detector(cfg: Settings) -> BallDetector | None:
-    """None when the ball model is not installed; analysis degrades gracefully."""
+    """None when the ball model is not installed; analysis degrades gracefully.
+
+    The existence check happens outside the cache so installing the model
+    later (without a restart) takes effect on the next analysis.
+    """
+    if not cfg.ball_model_path.is_file():
+        return None
     return _build_detector(str(cfg.ball_model_path), cfg.ball_min_conf)
 
 

@@ -31,8 +31,8 @@ class MetricValue(BaseModel):
     delta: float | None = None
     delta_pct: float | None = None
     category: Literal["form", "timing"] = "form"
-    confidence: float = 1.0
-    coverage: float = 1.0
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    coverage: float = Field(default=1.0, ge=0.0, le=1.0)
     benchmark_sample_count: int | None = None
     robust_z_score: float | None = None
     reliable: bool = True

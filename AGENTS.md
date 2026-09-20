@@ -241,9 +241,12 @@ single-frame controls. API error shapes: implemented routes use
   gateway/web/API each have healthchecks; the API's hits `/ready`.
 - Docker requires the local-only artifacts on the host first:
   `models/yolo11n-pose.pt`, `data/benchmarks/curry_v3.json`,
-  `data/raw_videos/curry/curry_v3_reference.mp4`, and `infra/artifacts.json`
-  (bind-mounted; if missing, Docker creates an empty directory and `/ready`
-  never passes).
+  `data/raw_videos/curry/curry_v3_reference.mp4`, and `infra/artifacts.json`.
+  The whole `infra/` directory is bind-mounted read-only (a single-file mount
+  would pin the old inode when `release_artifacts.py` re-pins via
+  `atomic_write`); if `artifacts.json` is missing, `/ready` never passes.
+  The gateway resolves `api`/`web` through Docker's embedded DNS, so
+  recreated containers keep working without a gateway restart.
 - On Linux, create `data/analyses`, `data/uploads`, `data/keypoints`,
   `data/.locks` and chown them to the API container's UID/GID 10001 before
   starting Compose. `/ready` checks all four.

@@ -92,6 +92,12 @@ class ShotSequence(BaseModel):
 
     @model_validator(mode="after")
     def validate_timeline(self) -> "ShotSequence":
+        # One record per decoded video frame: phase indices, ball tracks and
+        # overlays all rely on frames[i].frame_idx == i mapping back to the
+        # source video (docs/ARCHITECTURE.md §3).
+        for i, frame in enumerate(self.frames):
+            if frame.frame_idx != i:
+                raise ValueError("pose frame indices must be contiguous from 0")
         timestamps = [frame.t_ms for frame in self.frames]
         if timestamps != sorted(timestamps):
             raise ValueError("pose frame timestamps must be monotonic")
