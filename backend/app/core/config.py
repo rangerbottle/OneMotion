@@ -28,6 +28,37 @@ class Settings(BaseSettings):
     warm_model: bool = False
     # Roboflow API key, required only when pose_backend = "rfdetr".
     rf_api_key: str | None = None
+    # Frame-by-frame comparison domain (players / action templates / clips).
+    compare_camera_match_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+    compare_camera_suspect_ratio: float = Field(default=0.25, ge=0.0, le=1.0)
+
+    @property
+    def compare_dir(self) -> Path:
+        return self.data_dir / "compare"
+
+    @property
+    def compare_players_dir(self) -> Path:
+        return self.compare_dir / "players"
+
+    @property
+    def compare_templates_dir(self) -> Path:
+        return self.compare_dir / "templates"
+
+    @property
+    def compare_clips_dir(self) -> Path:
+        return self.compare_dir / "clips"
+
+    @property
+    def compare_comparisons_dir(self) -> Path:
+        return self.compare_dir / "comparisons"
+
+    @property
+    def compare_reports_dir(self) -> Path:
+        return self.compare_dir / "reports"
+
+    @property
+    def compare_videos_dir(self) -> Path:
+        return self.compare_dir / "videos"
 
     @property
     def benchmark_path(self) -> Path:
