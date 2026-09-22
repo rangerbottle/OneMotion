@@ -35,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <nav className="flex gap-6 text-sm text-zinc-600 dark:text-zinc-400">
             <Link href="/record" className="hover:text-foreground">Record</Link>
             <Link href="/upload" className="hover:text-foreground">Upload</Link>
+            <Link href="/compare" className="hover:text-foreground">对比</Link>
           </nav>
         </header>
         {children}

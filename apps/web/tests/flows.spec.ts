@@ -133,3 +133,41 @@ test("recording locks the submitted clip and preserves its container type", asyn
   finish();
   await expect(page).toHaveURL(/analysis\/demo/);
 });
+
+test("compare entry lists players and creates a new one", async ({ page }) => {
+  await page.goto("/compare");
+  await expect(page.getByText("测试学员")).toBeVisible();
+  await page.getByPlaceholder("学员姓名").fill("小李");
+  await page.getByRole("button", { name: "新建学员" }).click();
+  await expect(page.getByText("新学员")).toBeVisible();
+});
+
+test("compare workbench loads, steps frames and switches views", async ({ page }) => {
+  await page.goto("/compare/demo");
+  await expect(page.getByText("对比工作台")).toBeVisible();
+  await expect(page.getByText("A · 基准", { exact: true })).toBeVisible();
+  // Keyboard frame stepping moves the playhead readout.
+  const timeBefore = await page.locator("span.font-mono").first().textContent();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(async () =>
+    page.locator("span.font-mono").first().textContent(),
+  ).not.toBe(timeBefore);
+  // Space toggles playback.
+  await page.keyboard.press(" ");
+  await expect(page.getByRole("button", { name: "暂停" })).toBeVisible();
+  await page.keyboard.press(" ");
+  await expect(page.getByRole("button", { name: "播放" })).toBeVisible();
+  // View-mode keys switch the active mode.
+  await page.keyboard.press("3");
+  await expect(page.getByRole("button", { name: /差分/ })).toHaveClass(/bg-foreground/);
+  await page.keyboard.press("1");
+  await expect(page.getByRole("button", { name: /双联/ })).toHaveClass(/bg-foreground/);
+  // Phase offset badges render from the fixture (发力: B 晚 1 帧).
+  await expect(page.getByText(/发力：B 晚 1 帧/)).toBeVisible();
+  // Adding a marker via the dialog lists it after save.
+  await page.getByRole("button", { name: /＋标记/ }).click();
+  await page.getByPlaceholder("例如：手腕打开过晚").fill("测试标记");
+  await page.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(page.getByText("正在加载对比工作台…")).toHaveCount(0);
+});

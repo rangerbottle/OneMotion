@@ -129,6 +129,27 @@ Missed detections stay `None` (never interpolated). A missing model file
 yields `available=False` with a reason — analysis and `/ready` are unaffected,
 and the ball model is deliberately not pinned in `infra/artifacts.json`.
 
+### Frame-by-frame comparison (`backend/app/compare/`, `/api/v1/compare`)
+
+Player-vs-own-history comparison for coaches: upload two clips of the same
+action from the **same camera position** (V1 constraint) and compare them
+frame by frame. Entities (JSON under `data/compare/`, no TTL — data assets):
+`Player` / `ActionTemplate` (named, ordered default phases) / `Clip`
+(`ClipMeta` + separate `.pose.json` `ShotSequence` + video in
+`data/compare/videos/`) / `ComparisonState` (spatial affine, temporal
+offsets, per-clip phase boundaries, event markers, camera check, report).
+Pipeline: clip upload reuses the pose backend; comparison creation runs
+`compare/alignment.py` (ORB background matching with the person masked out,
+RANSAC homography → inlier-ratio grading via `ONEMOTION_COMPARE_CAMERA_*`
+thresholds, homography reduced to a best-fit **affine** because Canvas 2D
+cannot apply projective transforms) and `compare/signals.py` (normalized
+pose-signal cross-correlation proposing a **global** time offset — no time
+warping, by design). The workbench (`apps/web/app/compare/[id]/`) renders
+split/overlay/difference views on canvas from rVFC clocks, with keyboard
+frame stepping, draggable phase boundaries, event markers, per-frame joint
+angle charts (`GET …/metrics`), and `compare/report.py` keyframe export
+(max-deviation frames with both skeletons drawn).
+
 ### Phases (`analysis/phases.py`)
 
 `dip → load → lift → release → follow_through`, driven by shooting-wrist
