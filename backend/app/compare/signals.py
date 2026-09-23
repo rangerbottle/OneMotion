@@ -34,26 +34,27 @@ def pose_signal(seq: ShotSequence) -> tuple[np.ndarray, np.ndarray]:
 
 def suggest_offset_ms(
     seq_a: ShotSequence, seq_b: ShotSequence
-) -> tuple[int | None, float | None]:
-    """Proposed offset_ms_b and peak confidence in [0,1]; None when unreliable."""
+) -> tuple[int, int, float | None]:
+    """Propose (offset_ms_a, offset_ms_b) and peak confidence in [0,1].
+
+    Consumers map t_b = t_a − offset_a + offset_b, so a positive offset_b
+    means B's action starts later in B's clip. The correlation finds
+    lag = offset_a − offset_b; the difference is split onto the two anchors
+    so neither is ever negative.
+    """
     t_a, s_a = pose_signal(seq_a)
     t_b, s_b = pose_signal(seq_b)
     duration_a = t_a[-1] - t_a[0] if len(t_a) else 0.0
     duration_b = t_b[-1] - t_b[0] if len(t_b) else 0.0
     if min(duration_a, duration_b) < 1000.0:
-        return None, None
-    duration_a = t_a[-1] - t_a[0]
-    duration_b = t_b[-1] - t_b[0]
+        return 0, 0, None
     grid = np.arange(0.0, min(duration_a, duration_b) + 1e-6, 1000.0 / GRID_HZ)
     a = np.interp(grid, t_a - t_a[0], s_a)
     b = np.interp(grid, t_b - t_b[0], s_b)
     max_lag = int(MAX_LAG_S * GRID_HZ)
     a = a - a.mean()
     b = b - b.mean()
-    denom = np.sqrt(np.sum(a**2) * np.sum(b**2))
-    if denom <= 1e-12:
-        return None, None
-    # correlate a with shifted b: positive lag means B starts later than A.
+    # correlate a with shifted b: best_lag = offset_a − offset_b.
     best_lag, best_score = 0, -np.inf
     for lag in range(-max_lag, max_lag + 1):
         if lag >= 0:
@@ -62,9 +63,17 @@ def suggest_offset_ms(
             x, yv = a[: len(a) + lag], b[-lag:]
         if len(x) < GRID_HZ / 2:
             continue
+        # Normalize by the overlap's own norms so short overlaps cannot win
+        # by correlation length alone.
+        denom = float(np.sqrt(np.sum(x**2) * np.sum(yv**2)))
+        if denom <= 1e-12:
+            continue
         score = float(np.dot(x, yv)) / denom
         if score > best_score:
             best_score, best_lag = score, lag
     if best_score <= 0:
-        return None, None
-    return int(round(best_lag * 1000.0 / GRID_HZ)), round(best_score, 3)
+        return 0, 0, None
+    delta_ms = int(round(-best_lag * 1000.0 / GRID_HZ))  # = offset_b − offset_a
+    if delta_ms >= 0:
+        return 0, delta_ms, round(best_score, 3)
+    return -delta_ms, 0, round(best_score, 3)

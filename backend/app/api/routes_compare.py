@@ -31,6 +31,7 @@ from app.schemas.compare import (
     EventMarker,
     PhaseBoundary,
     Player,
+    TemporalAlignment,
 )
 from app.schemas.pose import ShotSequence
 
@@ -108,11 +109,18 @@ def delete_player(player_id: str, cfg: Cfg) -> None:
     with store.lock(cfg, player_id):
         for template in store.list_templates(cfg, player_id):
             store.delete_template_file(cfg, template.template_id)
-        for clip in store.list_clip_metas(cfg, player_id):
-            store.delete_clip_files(cfg, clip)
         for comparison in store.list_comparisons(cfg, player_id):
             store.delete_comparison_file(cfg, comparison.comparison_id)
+            _remove_report_dir(cfg, comparison.comparison_id)
+        for clip in store.list_clip_metas(cfg, player_id):
+            store.delete_clip_files(cfg, clip)
         store.delete_player_file(cfg, player_id)
+
+
+def _remove_report_dir(cfg: Settings, comparison_id: str) -> None:
+    import shutil
+
+    shutil.rmtree(cfg.compare_reports_dir / comparison_id, ignore_errors=True)
 
 
 @router.post("/compare/players/{player_id}/templates", response_model=ActionTemplate, status_code=201)
@@ -250,6 +258,16 @@ def delete_clip(clip_id: str, cfg: Cfg) -> None:
         meta = store.load_clip_meta(cfg, clip_id)
     except FileNotFoundError:
         raise HTTPException(404, f"no clip '{clip_id}'")
+    referencing = [
+        c
+        for c in store.list_comparisons(cfg, meta.player_id)
+        if clip_id in (c.baseline_clip_id, c.comparison_clip_id)
+    ]
+    if referencing:
+        raise HTTPException(
+            409,
+            f"clip is used by {len(referencing)} comparison(s) — delete those first",
+        )
     with store.lock(cfg, clip_id):
         store.delete_clip_files(cfg, meta)
 
@@ -283,14 +301,15 @@ def _decode_samples(video_path: Path, indices: list[int]) -> dict[int, "object"]
 
 def _default_phases(names: list[str], frame_count: int) -> list[PhaseBoundary]:
     count = len(names)
-    return [
-        PhaseBoundary(
-            phase=name,
-            start_frame=round(i * frame_count / count),
-            end_frame=round((i + 1) * frame_count / count) - 1,
-        )
-        for i, name in enumerate(names)
-    ]
+    last = max(frame_count - 1, 0)
+    phases = []
+    for i, name in enumerate(names):
+        start = min(round(i * frame_count / count), last)
+        end = min(round((i + 1) * frame_count / count) - 1, last)
+        if end < start:
+            end = start
+        phases.append(PhaseBoundary(phase=name, start_frame=start, end_frame=end))
+    return phases
 
 
 @router.post("/compare/comparisons", response_model=ComparisonState, status_code=201)
@@ -335,8 +354,8 @@ def create_comparison(body: dict, cfg: Cfg) -> ComparisonState:
         mask_b = person_mask(frames_b[ib].shape[:2], seq_b.frames[ib].keypoints)
         pairs.append(_match_pair(frames_a[ia], frames_b[ib], mask_a, mask_b))
     camera = check_camera(pairs, cfg)
-    spatial = fit_affine(pairs) or AffineTransform()
-    suggested, confidence = suggest_offset_ms(seq_a, seq_b)
+    spatial = fit_affine(pairs, clip_a.width, clip_a.height) or AffineTransform()
+    offset_a, offset_b, confidence = suggest_offset_ms(seq_a, seq_b)
 
     state = ComparisonState(
         comparison_id=_new_id(),
@@ -346,9 +365,9 @@ def create_comparison(body: dict, cfg: Cfg) -> ComparisonState:
         comparison_clip_id=clip_b.clip_id,
         spatial=spatial,
         temporal={
-            "offset_ms_a": 0,
-            "offset_ms_b": suggested or 0,
-            "suggested_offset_ms_b": suggested,
+            "offset_ms_a": offset_a,
+            "offset_ms_b": offset_b,
+            "suggested_offset_ms_b": offset_b or None,
             "suggestion_confidence": confidence,
         },
         phases_a=_default_phases(template.default_phases, clip_a.frame_count),
@@ -393,10 +412,18 @@ def patch_comparison(comparison_id: str, body: dict, cfg: Cfg) -> ComparisonStat
             temporal = dict(body["temporal"])
             for key in ("offset_ms_a", "offset_ms_b"):
                 if key in temporal:
-                    temporal[key] = int(temporal[key])
+                    try:
+                        temporal[key] = int(temporal[key])
+                    except (TypeError, ValueError):
+                        raise HTTPException(422, f"{key} must be an integer") from None
                     if temporal[key] < 0:
                         raise HTTPException(422, f"{key} must be >= 0")
-            merged = state.temporal.model_copy(update=temporal)
+            try:
+                merged = TemporalAlignment.model_validate(
+                    {**state.temporal.model_dump(), **temporal}
+                )
+            except ValueError as exc:
+                raise HTTPException(422, f"invalid temporal alignment: {exc}") from exc
             updates["temporal"] = merged
         for key, frame_count in (("phases_a", clip_a.frame_count), ("phases_b", clip_b.frame_count)):
             if key in body:
@@ -404,10 +431,13 @@ def patch_comparison(comparison_id: str, body: dict, cfg: Cfg) -> ComparisonStat
                 _validate_phases(phases, frame_count)
                 updates[key] = phases
         if "markers" in body:
-            markers = [
-                EventMarker.model_validate({**m, "created_at": m.get("created_at") or datetime.now(timezone.utc)})
-                for m in body["markers"]
-            ]
+            try:
+                markers = [
+                    EventMarker.model_validate({**m, "created_at": m.get("created_at") or datetime.now(timezone.utc)})
+                    for m in body["markers"]
+                ]
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(422, f"invalid markers: {exc}") from exc
             count_a = clip_a.frame_count
             for marker in markers:
                 if marker.frame >= count_a:
@@ -454,6 +484,7 @@ def delete_comparison(comparison_id: str, cfg: Cfg) -> None:
         raise HTTPException(404, f"no comparison '{comparison_id}'")
     with store.lock(cfg, comparison_id):
         store.delete_comparison_file(cfg, comparison_id)
+        _remove_report_dir(cfg, comparison_id)
 
 
 ANGLE_TRIPLES = {
@@ -471,8 +502,11 @@ def comparison_metrics(comparison_id: str, cfg: Cfg) -> dict:
         state = store.load_comparison(cfg, comparison_id)
     except FileNotFoundError:
         raise HTTPException(404, f"no comparison '{comparison_id}'")
-    seq_a = store.load_clip_pose(cfg, state.baseline_clip_id)
-    seq_b = store.load_clip_pose(cfg, state.comparison_clip_id)
+    try:
+        seq_a = store.load_clip_pose(cfg, state.baseline_clip_id)
+        seq_b = store.load_clip_pose(cfg, state.comparison_clip_id)
+    except FileNotFoundError:
+        raise HTTPException(410, "clip pose data is no longer available")
     return {"a": _angle_series(seq_a), "b": _angle_series(seq_b)}
 
 
@@ -519,6 +553,10 @@ def generate_report(comparison_id: str, cfg: Cfg) -> ComparisonState:
 @router.get("/compare/reports/{comparison_id}/{filename}")
 def report_file(comparison_id: str, filename: str, cfg: Cfg) -> FileResponse:
     _check_id(comparison_id, "comparison")
+    try:
+        store.load_comparison(cfg, comparison_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "no such comparison")
     if not REPORT_FILE_RE.fullmatch(filename):
         raise HTTPException(404, "no such report file")
     path = cfg.compare_reports_dir / comparison_id / filename

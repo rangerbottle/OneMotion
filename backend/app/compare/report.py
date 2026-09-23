@@ -38,7 +38,12 @@ COLOR_B = (60, 130, 245)   # BGR — clip B skeleton (drawn through the affine)
 
 
 def aligned_deviation(seq_a: ShotSequence, seq_b: ShotSequence, state: ComparisonState) -> list[tuple[int, float]]:
-    """(aligned_ms, mean normalized keypoint distance) per aligned sample."""
+    """(aligned_ms, mean normalized keypoint distance) per aligned sample.
+
+    B's keypoints are mapped through the spatial affine before the distance
+    is measured, so the deviation reflects action difference rather than
+    camera misalignment (the same convention the overlay view uses).
+    """
     conf_min = 0.5
     offset_a = state.temporal.offset_ms_a
     offset_b = state.temporal.offset_ms_b
@@ -55,7 +60,7 @@ def aligned_deviation(seq_a: ShotSequence, seq_b: ShotSequence, state: Compariso
         frame_b = _frame_at(seq_b, aligned + offset_b)
         if frame_b is None:
             continue
-        dist = _kp_distance(frame_a, frame_b, conf_min)
+        dist = _kp_distance(frame_a, frame_b, conf_min, state.spatial, seq_b.width, seq_b.height, seq_a.width, seq_a.height)
         if dist is not None:
             results.append((aligned, dist))
     return results
@@ -73,14 +78,31 @@ def _frame_at(seq: ShotSequence, t_ms: float):
     return frames[lo]
 
 
-def _kp_distance(frame_a, frame_b, conf_min: float) -> float | None:
+def _kp_distance(
+    frame_a,
+    frame_b,
+    conf_min: float,
+    spatial: AffineTransform,
+    b_width: int,
+    b_height: int,
+    a_width: int,
+    a_height: int,
+) -> float | None:
     b_map = {kp.name: kp for kp in frame_b.keypoints}
+    rad = np.radians(spatial.rotation_deg)
+    rot = np.array(
+        [[np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]]
+    )
     total, count = 0.0, 0
     for kp_a in frame_a.keypoints:
         kp_b = b_map.get(kp_a.name)
         if kp_b is None or kp_a.confidence < conf_min or kp_b.confidence < conf_min:
             continue
-        total += float(np.hypot(kp_a.x - kp_b.x, (kp_a.y - kp_b.y) * 1.0))
+        # B normalized → B pixels → affine (B→A) → A pixels → A normalized.
+        point = np.array([kp_b.x * b_width, kp_b.y * b_height])
+        mapped = spatial.scale * (rot @ point) + np.array([spatial.tx, spatial.ty])
+        bx, by = mapped[0] / a_width, mapped[1] / a_height
+        total += float(np.hypot(kp_a.x - bx, kp_a.y - by))
         count += 1
     return total / count if count >= 8 else None
 
@@ -159,6 +181,9 @@ def build_report(cfg: Settings, state: ComparisonState) -> ReportRef:
 
     out_dir = cfg.compare_reports_dir / state.comparison_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    # A regeneration may pick fewer keyframes — never leave stale ones servable.
+    for stale in out_dir.glob("kf_*.png"):
+        stale.unlink(missing_ok=True)
     refs: list[KeyframeRef] = []
     if video_a is not None and video_b is not None:
         for i, (aligned, value) in enumerate(keyframes):

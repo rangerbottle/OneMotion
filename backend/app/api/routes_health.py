@@ -35,7 +35,16 @@ def ready(cfg: Cfg):
     except (FileNotFoundError, ValueError) as exc:
         failures.append(str(exc))
     import tempfile
-    for directory in (cfg.analyses_dir, cfg.uploads_dir, cfg.keypoints_dir, cfg.data_dir / ".locks"):
+
+    for directory in (
+        cfg.analyses_dir,
+        cfg.uploads_dir,
+        cfg.keypoints_dir,
+        cfg.data_dir / ".locks",
+        cfg.compare_videos_dir,
+        cfg.compare_clips_dir,
+        cfg.compare_comparisons_dir,
+    ):
         try:
             directory.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryFile(dir=directory) as probe:

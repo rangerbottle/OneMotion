@@ -20,7 +20,7 @@ export type CameraCheckResult = {
   status: "match" | "suspect" | "mismatch";
   inlier_ratio: number;
   matches: number;
-  homography: number[] | null;
+  homography: number[][] | null;
 };
 
 export type ClipMeta = {

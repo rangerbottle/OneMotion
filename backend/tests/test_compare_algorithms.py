@@ -33,16 +33,17 @@ def shifted(frame, dx, dy):
 def test_camera_check_match_and_affine_recovery(tmp_path):
     cfg = Settings(data_dir=tmp_path)
     rng = np.random.default_rng(7)
-    # B is A shifted 8px right / 4px down — same camera nudged.
+    # B is A shifted 8px right / 4px down — same camera nudged. The stored
+    # affine maps B back onto A, so its translation is the inverse shift.
     a = textured_frame(rng)
     b = shifted(a, 8, 4)
     pairs = [_match(a, b), _match(a, b)]
     result = check_camera(pairs, cfg)
     assert result.status == "match"
     assert result.inlier_ratio >= 0.5
-    affine = fit_affine(pairs)
+    affine = fit_affine(pairs, a.shape[1], a.shape[0])
     assert affine is not None
-    assert abs(affine.tx - 8) <= 2 and abs(affine.ty - 4) <= 2
+    assert abs(affine.tx - (-8)) <= 2 and abs(affine.ty - (-4)) <= 2
 
 
 def test_camera_check_mismatch_on_different_backgrounds(tmp_path):
@@ -71,11 +72,26 @@ def _match(frame_a, frame_b):
 
 def test_homography_to_affine_pure_translation():
     h = np.array([[1.0, 0.0, 12.0], [0.0, 1.0, -7.0], [0.0, 0.0, 1.0]])
-    affine = homography_to_affine(h)
+    affine = homography_to_affine(h, 640, 480)
     assert affine.tx == pytest.approx(12.0)
     assert affine.ty == pytest.approx(-7.0)
     assert affine.scale == pytest.approx(1.0)
     assert abs(affine.rotation_deg) < 1e-6
+
+
+def test_homography_to_affine_fits_across_frame_not_corner():
+    # Mild projective warp: a corner-only fit would drift badly mid-frame.
+    h = np.array([[1.0, 0.01, 30.0], [-0.008, 1.0, -20.0], [2e-5, -1.5e-5, 1.0]])
+    affine = homography_to_affine(h, 1920, 1080)
+    import cv2
+
+    grid = np.array([[960.0, 540.0], [480.0, 270.0], [1440.0, 810.0]], dtype=np.float32)
+    expected = cv2.perspectiveTransform(grid.reshape(1, -1, 2), h).reshape(-1, 2)
+    rad = np.radians(affine.rotation_deg)
+    rot = np.array([[np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]])
+    for src, want in zip(grid, expected):
+        got = affine.scale * (rot @ src) + np.array([affine.tx, affine.ty])
+        assert np.allclose(got, want, atol=15.0)
 
 
 def test_person_mask_blanks_person_area():
@@ -96,11 +112,23 @@ def test_sample_frame_indices_bounds_count():
 
 
 def test_suggest_offset_recovers_known_lag():
-    # B's content starts 15 frames (500 ms @30fps) into the same motion pattern.
+    # A holds the pattern from its start; B's recording begins 15 frames
+    # (500 ms @30fps) INTO the pattern, so B's action starts earlier in
+    # B's clip — the anchor must land on offset_a.
     seq_a = _cycling_sequence(content_offset=0)
     seq_b = _cycling_sequence(content_offset=15)
-    offset, confidence = suggest_offset_ms(seq_a, seq_b)
-    assert offset == pytest.approx(500, abs=60)  # 100 Hz grid
+    offset_a, offset_b, confidence = suggest_offset_ms(seq_a, seq_b)
+    assert (offset_a, offset_b) == (pytest.approx(500, abs=60), 0)  # 100 Hz grid
+    assert confidence is not None and confidence > 0.7
+
+
+def test_suggest_offset_handles_action_later_in_b():
+    # B starts 15 frames before the pattern — its action begins later than
+    # A's, so the anchor must land on offset_b instead.
+    seq_a = _cycling_sequence(content_offset=15)
+    seq_b = _cycling_sequence(content_offset=0)
+    offset_a, offset_b, confidence = suggest_offset_ms(seq_a, seq_b)
+    assert (offset_a, offset_b) == (0, pytest.approx(500, abs=60))
     assert confidence is not None and confidence > 0.7
 
 
@@ -130,7 +158,7 @@ def _ALL_NAMES():
 
 def test_suggest_offset_short_clips_returns_none():
     seq = sequence()  # 3 frames / 200 ms — too short
-    assert suggest_offset_ms(seq, seq) == (None, None)
+    assert suggest_offset_ms(seq, seq) == (0, 0, None)
 
 
 def test_pose_signal_interpolates_missing_frames():

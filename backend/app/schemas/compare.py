@@ -35,7 +35,9 @@ class CameraCheckResult(BaseModel):
 
 
 class AffineTransform(BaseModel):
-    # Pixels (normalized to clip width by the frontend when rendering).
+    # Origin-centered pixel transform mapping clip B onto clip A's frame
+    # (x' = scale·R·x + t), in clip A's pixel resolution; both renderers
+    # (frontend stage and report drawing) use this same convention.
     tx: float = 0.0
     ty: float = 0.0
     scale: float = 1.0

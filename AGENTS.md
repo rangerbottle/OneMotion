@@ -141,10 +141,12 @@ offsets, per-clip phase boundaries, event markers, camera check, report).
 Pipeline: clip upload reuses the pose backend; comparison creation runs
 `compare/alignment.py` (ORB background matching with the person masked out,
 RANSAC homography → inlier-ratio grading via `ONEMOTION_COMPARE_CAMERA_*`
-thresholds, homography reduced to a best-fit **affine** because Canvas 2D
-cannot apply projective transforms) and `compare/signals.py` (normalized
-pose-signal cross-correlation proposing a **global** time offset — no time
-warping, by design). The workbench (`apps/web/app/compare/[id]/`) renders
+thresholds, homography reduced to a best-fit **affine** — B→A,
+origin-centered `x' = s·R·x + t` in clip A pixels — because Canvas 2D cannot
+apply projective transforms; both renderers share this convention) and
+`compare/signals.py` (normalized pose-signal cross-correlation proposing a
+**global** time offset — no time warping, by design; the lag is split
+between `offset_ms_a`/`offset_ms_b` so neither anchor is ever negative). The workbench (`apps/web/app/compare/[id]/`) renders
 split/overlay/difference views on canvas from rVFC clocks, with keyboard
 frame stepping, draggable phase boundaries, event markers, per-frame joint
 angle charts (`GET …/metrics`), and `compare/report.py` keyframe export

@@ -106,6 +106,7 @@ function Wizard() {
   const [offsetA, setOffsetA] = useState(0);
   const [offsetB, setOffsetB] = useState(0);
   const [allowMismatch, setAllowMismatch] = useState(false);
+  const creatingRef = useRef(false);
   const runRef = useRef(0);
 
   const loadDetail = useCallback(async (playerId: string) => {
@@ -118,9 +119,17 @@ function Wizard() {
     if (playerParam) {
       // Fetch-on-mount: loadDetail() sets state only after awaited network calls.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      void loadDetail(playerParam).catch((error) => {
-        setMessage(error instanceof Error ? error.message : "加载学员信息失败。");
-      });
+      void loadDetail(playerParam)
+        .then((data) => {
+          // ?player= without ?template=: pick the first template so the clip
+          // lists are not permanently empty for fresh players.
+          if (!templateParam && data.templates[0]) {
+            setSelectedTemplateId(data.templates[0].template_id);
+          }
+        })
+        .catch((error) => {
+          setMessage(error instanceof Error ? error.message : "加载学员信息失败。");
+        });
       return;
     }
     listPlayers()
@@ -129,7 +138,7 @@ function Wizard() {
         setPlayers([]);
         setMessage(error instanceof Error ? error.message : "加载学员列表失败。");
       });
-  }, [playerParam, loadDetail]);
+  }, [playerParam, templateParam, loadDetail]);
 
   async function handlePickPlayer(playerId: string) {
     setSelectedPlayerId(playerId);
@@ -161,6 +170,11 @@ function Wizard() {
 
   function handleClipPicked(clip: ClipMeta) {
     setMessage(null);
+    // Any clip change invalidates a previous camera check / suggestion run —
+    // the align step must re-run against the new pair.
+    setComparison(null);
+    setCompareFailed(false);
+    setAllowMismatch(false);
     if (clip.kind === "baseline") setBaselineClip(clip);
     else setComparisonClip(clip);
   }
@@ -178,6 +192,8 @@ function Wizard() {
 
   async function runComparison() {
     if (!selectedPlayerId || !selectedTemplateId || !baselineClip || !comparisonClip) return;
+    if (creatingRef.current) return; // double-click guard: never POST twice
+    creatingRef.current = true;
     const run = ++runRef.current;
     setComparing(true);
     setCompareFailed(false);
@@ -199,6 +215,7 @@ function Wizard() {
       setCompareFailed(true);
       setMessage(error instanceof Error ? error.message : "机位校验失败，请重试。");
     } finally {
+      creatingRef.current = false;
       if (run === runRef.current) setComparing(false);
     }
   }

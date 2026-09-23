@@ -162,3 +162,37 @@ def test_report_file_serving_and_traversal_guard(cfg):
     with pytest.raises(HTTPException) as exc:
         routes.report_file(state.comparison_id, "../secret.png", cfg)
     assert exc.value.status_code == 404
+
+
+def test_clip_delete_is_rejected_while_referenced(cfg):
+    player = make_player(cfg)
+    template = make_template(cfg, player.player_id)
+    clip_a = make_clip(cfg, player.player_id, template.template_id, kind="baseline")
+    clip_b = make_clip(cfg, player.player_id, template.template_id)
+    routes.create_comparison(
+        {"player_id": player.player_id, "template_id": template.template_id,
+         "baseline_clip_id": clip_a.clip_id, "comparison_clip_id": clip_b.clip_id}, cfg)
+    with pytest.raises(HTTPException) as exc:
+        routes.delete_clip(clip_a.clip_id, cfg)
+    assert exc.value.status_code == 409
+    # After the comparison is gone the clip deletes cleanly.
+    routes.delete_player(player.player_id, cfg)
+
+
+def test_patch_rejects_bad_types_as_422(cfg):
+    player = make_player(cfg)
+    template = make_template(cfg, player.player_id)
+    clip_a = make_clip(cfg, player.player_id, template.template_id, kind="baseline")
+    clip_b = make_clip(cfg, player.player_id, template.template_id)
+    state = routes.create_comparison(
+        {"player_id": player.player_id, "template_id": template.template_id,
+         "baseline_clip_id": clip_a.clip_id, "comparison_clip_id": clip_b.clip_id}, cfg)
+    with pytest.raises(HTTPException) as exc:
+        routes.patch_comparison(state.comparison_id, {"temporal": {"offset_ms_b": "soon"}}, cfg)
+    assert exc.value.status_code == 422
+    with pytest.raises(HTTPException) as exc:
+        routes.patch_comparison(state.comparison_id, {"markers": "not-a-list"}, cfg)
+    assert exc.value.status_code == 422
+    with pytest.raises(HTTPException) as exc:
+        routes.patch_comparison(state.comparison_id, {"temporal": {"suggestion_confidence": 5}}, cfg)
+    assert exc.value.status_code == 422

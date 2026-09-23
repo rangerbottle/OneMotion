@@ -53,12 +53,13 @@ def _match_pair(frame_a: np.ndarray, frame_b: np.ndarray, mask_a: np.ndarray, ma
     if des_a is None or des_b is None or not len(kp_a) or not len(kp_b):
         return PairStats(0, 0, None)
     bf = cv2.BFMatcher(cv2.NORM_HAMMING)
-    knn = bf.knnMatch(des_a, des_b, k=2)
-    good = [m for m, n in knn if m.distance < 0.75 * n.distance]
+    knn = bf.knnMatch(des_b, des_a, k=2)
+    good = [pair[0] for pair in knn if len(pair) == 2 and pair[0].distance < 0.75 * pair[1].distance]
     if len(good) < MIN_MATCHES:
         return PairStats(0, len(good), None)
-    src = np.float32([kp_a[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    dst = np.float32([kp_b[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+    # B → A: consumers draw clip B transformed onto clip A's frame.
+    src = np.float32([kp_b[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+    dst = np.float32([kp_a[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
     h_mat, inlier_mask = cv2.findHomography(src, dst, cv2.RANSAC, 3.0)
     if h_mat is None:
         return PairStats(0, len(good), None)
@@ -87,13 +88,21 @@ def check_camera(pairs: list[PairStats], cfg: Settings) -> CameraCheckResult:
     return CameraCheckResult(status=status, inlier_ratio=round(ratio, 3), matches=matches, homography=homography)
 
 
-def homography_to_affine(h_mat: np.ndarray) -> AffineTransform:
-    """Best-fit affine (scale + rotation + translation) to a homography."""
-    src = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+def homography_to_affine(h_mat: np.ndarray, width: int, height: int) -> AffineTransform:
+    """Best-fit affine (scale + rotation + translation) to a homography.
+
+    Samples a grid across the full frame — fitting only the unit square
+    would approximate the local Jacobian at the origin and break down for
+    any real perspective distortion.
+    """
     import cv2
 
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(0, width, 4), np.linspace(0, height, 4)
+    )
+    src = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1).astype(np.float32)
     dst = cv2.perspectiveTransform(src.reshape(1, -1, 2), h_mat).reshape(-1, 2)
-    design = np.concatenate([src, np.ones((4, 1))], axis=1)
+    design = np.concatenate([src, np.ones((len(src), 1))], axis=1)
     sol, *_ = np.linalg.lstsq(design, dst, rcond=None)
     linear = sol[:2].T
     t = sol[2]
@@ -107,13 +116,13 @@ def homography_to_affine(h_mat: np.ndarray) -> AffineTransform:
     return AffineTransform(tx=float(t[0]), ty=float(t[1]), scale=scale, rotation_deg=rotation)
 
 
-def fit_affine(pairs: list[PairStats]) -> AffineTransform | None:
+def fit_affine(pairs: list[PairStats], width: int, height: int) -> AffineTransform | None:
     if not pairs:
         return None
     best = max(pairs, key=lambda p: p.inliers)
     if best.homography is None:
         return None
-    return homography_to_affine(best.homography)
+    return homography_to_affine(best.homography, width, height)
 
 
 def sample_frame_indices(frame_count: int) -> list[int]:

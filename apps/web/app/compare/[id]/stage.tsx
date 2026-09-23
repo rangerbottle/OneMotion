@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { AffineTransform } from "@/lib/compare-api";
+import { comparisonVideoUrl } from "@/lib/compare-api";
 import type { PoseFrame, ShotSequence } from "@/lib/api";
 
 export type ViewMode = "split" | "overlay" | "difference";
@@ -36,6 +37,20 @@ export function frameAt(frames: PoseFrame[], t_ms: number): PoseFrame | null {
   return frames[low];
 }
 
+// Origin-centered convention shared with the backend fit and report drawing:
+// x' = scale·R·x + t (in clip A's pixel coordinates).
+function applySpatial(
+  x: number,
+  y: number,
+  spatial: AffineTransform,
+): [number, number] {
+  const rad = (spatial.rotation_deg * Math.PI) / 180;
+  return [
+    spatial.scale * (Math.cos(rad) * x - Math.sin(rad) * y) + spatial.tx,
+    spatial.scale * (Math.sin(rad) * x + Math.cos(rad) * y) + spatial.ty,
+  ];
+}
+
 function drawSkeleton(
   context: CanvasRenderingContext2D,
   frame: PoseFrame,
@@ -45,20 +60,10 @@ function drawSkeleton(
   spatial: AffineTransform | null,
 ) {
   const points = new Map(frame.keypoints.map((kp) => [kp.name, kp]));
-  const px = (kp: { x: number; y: number }) => {
-    let x = kp.x * width;
-    let y = kp.y * height;
-    if (spatial) {
-      const rad = (spatial.rotation_deg * Math.PI) / 180;
-      const cx = width / 2;
-      const cy = height / 2;
-      const dx = x - cx;
-      const dy = y - cy;
-      x = spatial.scale * (Math.cos(rad) * dx - Math.sin(rad) * dy) + cx + spatial.tx;
-      y = spatial.scale * (Math.sin(rad) * dx + Math.cos(rad) * dy) + cy + spatial.ty;
-    }
-    return [x, y] as const;
-  };
+  const px = (kp: { x: number; y: number }) =>
+    spatial
+      ? applySpatial(kp.x * width, kp.y * height, spatial)
+      : ([kp.x * width, kp.y * height] as const);
   context.save();
   context.strokeStyle = color;
   context.fillStyle = color;
@@ -141,6 +146,8 @@ export default function Stage({
       if (!ctxA || !ctxB) return;
       ctxA.clearRect(0, 0, width, height);
       ctxB.clearRect(0, 0, width, height);
+      ctxA.drawImage(va, 0, 0, width, height);
+      ctxB.drawImage(vb, 0, 0, width, height);
       if (frameA) drawSkeleton(ctxA, frameA, COLOR_A, width, height, null);
       if (frameB) drawSkeleton(ctxB, frameB, COLOR_B, width, height, null);
       return;
@@ -153,20 +160,18 @@ export default function Stage({
     if (mode === "overlay") {
       ctx.save();
       ctx.globalAlpha = opacity;
+      const [ox, oy] = applySpatial(0, 0, spatial);
       const rad = (spatial.rotation_deg * Math.PI) / 180;
-      const cx = width / 2;
-      const cy = height / 2;
-      ctx.translate(cx + spatial.tx, cy + spatial.ty);
+      ctx.translate(ox, oy);
       ctx.rotate(rad);
       ctx.scale(spatial.scale, spatial.scale);
-      ctx.translate(-cx, -cy);
       ctx.drawImage(vb, 0, 0, width, height);
       ctx.restore();
       if (frameA) drawSkeleton(ctx, frameA, COLOR_A, width, height, null);
       if (frameB) drawSkeleton(ctx, frameB, COLOR_B, width, height, spatial);
       return;
     }
-    // difference: pixel diff highlight, red where the frames diverge.
+    // difference: pixel diff highlight, red where the aligned frames diverge.
     if (!offA.current) {
       offA.current = document.createElement("canvas");
       offB.current = document.createElement("canvas");
@@ -175,8 +180,19 @@ export default function Stage({
     }
     const oa = offA.current!.getContext("2d")!;
     const ob = offB.current!.getContext("2d")!;
+    oa.clearRect(0, 0, width, height);
+    ob.clearRect(0, 0, width, height);
     oa.drawImage(va, 0, 0, width, height);
+    // Draw B through the spatial transform so the diff reflects action
+    // difference, not the known camera offset.
+    ob.save();
+    const [ox, oy] = applySpatial(0, 0, spatial);
+    const rad = (spatial.rotation_deg * Math.PI) / 180;
+    ob.translate(ox, oy);
+    ob.rotate(rad);
+    ob.scale(spatial.scale, spatial.scale);
     ob.drawImage(vb, 0, 0, width, height);
+    ob.restore();
     const dataA = oa.getImageData(0, 0, width, height);
     const dataB = ob.getImageData(0, 0, width, height);
     const out = oa.createImageData(width, height);
@@ -233,9 +249,13 @@ export default function Stage({
     };
   }, [draw, offsetMsA, offsetMsB, poseB.fps]);
 
-  // External seek (timeline click / keyboard frame stepping).
+  // External seek (timeline click / keyboard frame stepping): react only to
+  // a new nonce — otherwise slider-driven draw() identity changes would
+  // keep yanking playback back to the last seek point.
+  const lastNonce = useRef(0);
   useEffect(() => {
-    if (!seekRequest) return;
+    if (!seekRequest || seekRequest.nonce === lastNonce.current) return;
+    lastNonce.current = seekRequest.nonce;
     const va = videoA.current;
     const vb = videoB.current;
     if (!va || !vb) return;
@@ -244,6 +264,7 @@ export default function Stage({
     va.currentTime = Math.max(0, seekRequest.ms + offsetMsA) / 1000;
     vb.currentTime = Math.max(0, seekRequest.ms + offsetMsB) / 1000;
     draw();
+     
   }, [seekRequest, offsetMsA, offsetMsB, draw]);
 
   useEffect(() => {
@@ -261,30 +282,36 @@ export default function Stage({
     }
   }, [playing, speed]);
 
-  const urlA = `/api/v1/compare/comparisons/${comparisonId}/video/a`;
-  const urlB = `/api/v1/compare/comparisons/${comparisonId}/video/b`;
+  // Both video elements stay mounted in every mode; only the canvases and
+  // layout switch — remounting would lose currentTime and play state.
+  const urlA = comparisonVideoUrl(comparisonId, "a");
+  const urlB = comparisonVideoUrl(comparisonId, "b");
   const aspect = { aspectRatio: `${width} / ${height}` } as const;
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: mode === "split" ? "1fr 1fr" : "1fr" }}>
-      <div className="relative overflow-hidden rounded-xl bg-zinc-950" style={aspect}>
-        <video ref={videoA} src={urlA} muted playsInline preload="auto" className={mode === "split" ? "absolute inset-0 h-full w-full object-contain" : "hidden"} />
-        {mode === "split" ? (
-          <canvas ref={canvasA} width={width} height={height} className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
-        ) : (
-          <canvas ref={canvasMain} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
-        )}
-        <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">A · 基准</span>
-      </div>
-      {mode === "split" ? (
+    <div>
+      <div className="grid gap-4" style={{ gridTemplateColumns: mode === "split" ? "1fr 1fr" : "1fr" }}>
         <div className="relative overflow-hidden rounded-xl bg-zinc-950" style={aspect}>
-          <video ref={videoB} src={urlB} muted playsInline preload="auto" className="absolute inset-0 h-full w-full object-contain" />
-          <canvas ref={canvasB} width={width} height={height} className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
-          <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">B · 对比</span>
+          {mode === "split" ? (
+            <canvas ref={canvasA} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
+          ) : (
+            <canvas ref={canvasMain} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
+          )}
+          <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">A · 基准</span>
+          {mode !== "split" ? (
+            <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">B · 对比</span>
+          ) : null}
         </div>
-      ) : (
-        <video ref={videoB} src={urlB} muted playsInline preload="auto" className="hidden" />
-      )}
+        {mode === "split" ? (
+          <div className="relative overflow-hidden rounded-xl bg-zinc-950" style={aspect}>
+            <canvas ref={canvasB} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
+            <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">B · 对比</span>
+          </div>
+        ) : null}
+      </div>
+      {/* Always-mounted playback elements; canvases above read their frames. */}
+      <video ref={videoA} src={urlA} muted playsInline preload="auto" className="hidden" />
+      <video ref={videoB} src={urlB} muted playsInline preload="auto" className="hidden" />
     </div>
   );
 }

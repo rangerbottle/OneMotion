@@ -68,7 +68,17 @@ export default function Timeline({
     const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
     const clipMs = ratio * durationMs + (drag.side === "a" ? offsetMsA : offsetMsB);
     const fps = drag.side === "a" ? fpsA : fpsB;
-    setDrag({ ...drag, frame: Math.round((clipMs / 1000) * fps) });
+    const source = drag.side === "a" ? phasesA : phasesB;
+    const frameCount = Math.max(Math.round((drag.side === "a" ? clipDurationA : clipDurationB) / 1000 * fps), 1);
+    // Clamp inside the neighbouring phases so the PATCH can never be
+    // rejected for an inverted or out-of-range boundary.
+    const lower = source[drag.index]?.start_frame ?? 0;
+    const upper = Math.min(
+      source[drag.index + 1]?.end_frame ?? frameCount - 1,
+      frameCount - 1,
+    );
+    const frame = Math.min(Math.max(Math.round((clipMs / 1000) * fps), lower), upper);
+    setDrag({ ...drag, frame });
   };
 
   const endBoundaryDrag = () => {
@@ -118,15 +128,15 @@ export default function Timeline({
         {markers
           .filter((marker) => marker.side === "both" || marker.side === side)
           .map((marker) => {
-            // Markers store A-timeline ms; convert to this track's position.
+            // Markers store A-timeline ms; the track axis is aligned time.
             const aligned = marker.t_ms - offsetMsA;
-            const clipMs = aligned + (side === "a" ? offsetMsA : offsetMsB);
             return (
               <button
                 key={`${side}-${marker.marker_id}`}
                 className="absolute -top-0.5 h-9 w-3 -translate-x-1/5 text-zinc-700 dark:text-zinc-200"
-                style={{ left: `${(clipMs / durationMs) * 100}%` }}
+                style={{ left: `${(aligned / durationMs) * 100}%` }}
                 title={`${marker.text || "标记"}（点击定位，双击删除）`}
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSeek(aligned);

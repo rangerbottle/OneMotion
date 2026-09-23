@@ -19,6 +19,8 @@ const ANGLE_LABELS: Record<string, string> = {
   right_knee_deg: "右膝",
 };
 
+const PAD = { left: 40, right: 12, top: 10, bottom: 22 };
+
 export default function MetricsPanel({
   metrics,
   currentAlignedMs,
@@ -56,7 +58,7 @@ export default function MetricsPanel({
     }
     const values = [...seriesA, ...seriesB].map((p) => p.value).filter((v): v is number => v !== null);
     if (!values.length) return;
-    const pad = { left: 40, right: 12, top: 10, bottom: 22 };
+    const pad = PAD;
     const yMin = Math.min(...values) - 5;
     const yMax = Math.max(...values) + 5;
     const x = (tMs: number, offset: number) =>
@@ -113,21 +115,29 @@ export default function MetricsPanel({
     draw();
   }, [draw]);
 
-  const onPointer = (event: React.PointerEvent) => {
+  // CSS pixels → canvas pixels → plot-area ratio, matching draw()'s mapping.
+  const pointerToAligned = (event: { clientX: number }) => {
     const el = canvas.current;
-    if (!el) return;
+    if (!el) return null;
     const rect = el.getBoundingClientRect();
-    const ratio = (event.clientX - rect.left) / rect.width;
-    const aligned = ratio * durationMs;
+    const cx = (event.clientX - rect.left) * (el.width / rect.width);
+    const ratio = Math.min(
+      Math.max((cx - PAD.left) / (el.width - PAD.left - PAD.right), 0),
+      1,
+    );
+    return ratio * durationMs;
+  };
+
+  const onPointer = (event: React.PointerEvent) => {
+    const aligned = pointerToAligned(event);
+    if (aligned === null) return;
     hover.current = aligned;
     draw();
   };
 
   const onClick = (event: React.MouseEvent) => {
-    const el = canvas.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    onSeek(((event.clientX - rect.left) / rect.width) * durationMs);
+    const aligned = pointerToAligned(event);
+    if (aligned !== null) onSeek(aligned);
   };
 
   return (

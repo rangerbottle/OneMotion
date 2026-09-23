@@ -18,6 +18,7 @@ import {
   type ReportRef,
 } from "@/lib/compare-api";
 import type { ShotSequence } from "@/lib/api";
+import { apiUrl } from "@/lib/api";
 import Stage, { frameAt, type ViewMode } from "./stage";
 import Timeline from "./timeline";
 import MetricsPanel from "./metrics-panel";
@@ -60,6 +61,8 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
   const [report, setReport] = useState<ReportRef | null>(null);
 
   const patchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPatch = useRef<Parameters<typeof patchComparison>[1]>({});
+  const autoSpatial = useRef<typeof spatial | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +87,7 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
         setMetrics(metricData);
         setOpacity(comparison.opacity_default);
         setSpatial(comparison.spatial);
+        autoSpatial.current = comparison.spatial;
         setReport(comparison.report);
       })
       .catch((err: unknown) => {
@@ -110,6 +114,7 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
 
   const seekTo = useCallback((ms: number) => {
     const bounded = Math.min(Math.max(ms, 0), durationMs);
+    setPlaying(false); // seeking pauses playback — keep the transport state honest
     setAlignedMs(bounded);
     setSeekRequest((prev) => ({ ms: bounded, nonce: (prev?.nonce ?? 0) + 1 }));
   }, [durationMs]);
@@ -126,9 +131,28 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
       if (patchBody.temporal) next.temporal = { ...current.temporal, ...patchBody.temporal };
       return next;
     });
+    // Accumulate into a merged body so distinct edits inside the debounce
+    // window (e.g. a phase drag then a slider move) are all persisted.
+    const pending = pendingPatch.current;
+    pendingPatch.current = {
+      ...pending,
+      ...patchBody,
+      temporal: patchBody.temporal
+        ? { ...(pending.temporal ?? {}), ...patchBody.temporal }
+        : pending.temporal,
+    };
     if (patchTimer.current) clearTimeout(patchTimer.current);
     patchTimer.current = setTimeout(() => {
-      void patchComparison(comparisonId, patchBody).catch(() => setError("保存失败，请检查网络后重试。"));
+      const body = pendingPatch.current;
+      pendingPatch.current = {};
+      void patchComparison(comparisonId, body)
+        .catch(() => {
+          setError("保存失败，已恢复为服务器上的版本。");
+          // Roll back the optimistic merge from the server's truth.
+          void getComparison(comparisonId)
+            .then((fresh) => setState(fresh))
+            .catch(() => undefined);
+        });
     }, 600);
   }, [comparisonId]);
 
@@ -323,7 +347,18 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
         {viewMode === "overlay" ? (
           <label className="flex items-center gap-2 text-xs text-zinc-500">
             透明度
-            <input type="range" min={0} max={100} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-28 accent-foreground" />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(opacity * 100)}
+              onChange={(e) => {
+                const next = Number(e.target.value) / 100;
+                setOpacity(next);
+                patch({ opacity_default: next });
+              }}
+              className="w-28 accent-foreground"
+            />
           </label>
         ) : null}
         <button type="button" onClick={() => setMarkerDialog(true)} className="ml-auto rounded-full border border-black/[.08] px-4 py-1.5 dark:border-white/[.145]">＋标记 <kbd className="text-[10px] opacity-60">M</kbd></button>
@@ -453,7 +488,11 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => { setSpatial(state.spatial); patch({ spatial: state.spatial }); }}
+                onClick={() => {
+                  const restored = autoSpatial.current ?? state.spatial;
+                  setSpatial(restored);
+                  patch({ spatial: restored });
+                }}
                 className="h-10 rounded-full border border-black/[.08] px-5 dark:border-white/[.145]"
               >恢复自动对齐</button>
               <button type="button" onClick={() => setAlignDialog(false)} className="h-10 rounded-full bg-foreground px-5 text-background">完成</button>
@@ -476,7 +515,7 @@ export default function Workbench({ comparisonId }: { comparisonId: string }) {
                     {report.keyframes.map((frame, i) => (
                       <figure key={frame.url} className="rounded-xl border border-black/[.08] p-2 dark:border-white/[.145]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={frame.url} alt={`关键帧 ${i + 1}`} className="w-full rounded-lg" />
+                        <img src={apiUrl(frame.url) ?? undefined} alt={`关键帧 ${i + 1}`} className="w-full rounded-lg" />
                         <figcaption className="mt-1 text-xs text-zinc-500">
                           #{i + 1} · 偏差 {frame.deviation.toFixed(3)} · A {(frame.t_ms_a / 1000).toFixed(2)}s / B {(frame.t_ms_b / 1000).toFixed(2)}s
                         </figcaption>

@@ -7,6 +7,7 @@ const compare = JSON.parse(fs.readFileSync(new URL('./fixtures/compare.json', im
 const poseOf = { c1: replay.player_sequence, c2: replay.template_sequence };
 const players = [compare.player];
 http.createServer((request, response) => {
+ try {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Headers', '*');
   if (request.method === 'OPTIONS') { response.writeHead(204).end(); return; }
@@ -20,7 +21,7 @@ http.createServer((request, response) => {
     body = created;
   }
   else if (path === '/api/v1/compare/players') body = players;
-  else if (path === '/api/v1/compare/players/p1') body = compare.playerDetail;
+  else if (/^\/api\/v1\/compare\/players\/[a-z0-9]+$/.test(path)) body = compare.playerDetail;
   else if (path.includes('/compare/players/') && path.endsWith('/templates') && request.method === 'POST') {
     status = 201; body = compare.playerDetail.templates[0];
   }
@@ -41,4 +42,8 @@ http.createServer((request, response) => {
   else if (path.endsWith('/replay')) body = replay;
   else if (path.endsWith('/expired')) body = {...report, analysis_id: 'expired'};
   response.writeHead(status, {'Content-Type': 'application/json'}).end(JSON.stringify(body));
+ } catch (error) {
+  console.error('[stub crash]', request.method, request.url, error);
+  if (!response.headersSent) response.writeHead(500).end('{}');
+ }
 }).listen(8129, '127.0.0.1');
