@@ -28,3 +28,6 @@ Production deployment uses Next.js standalone output through the repository's
 Docker Compose stack. See the root `README.md` for artifact and startup details.
 
 Browser regressions use synthetic fixtures and isolated ports 3109/8129.
+Install FFmpeg with libvpx, or set `FFMPEG_PATH`. `npm test` generates the
+synthetic videos locally before running Playwright; no video binaries need to
+be committed. Use `npm run fixtures` to generate them separately.

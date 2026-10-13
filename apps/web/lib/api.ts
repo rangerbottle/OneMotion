@@ -14,6 +14,40 @@ export function apiUrl(path: string | null): string | null {
 export type PhaseName = "dip" | "load" | "lift" | "release" | "follow_through";
 export type TimingMode = "realtime" | "slow_motion" | "unknown";
 
+export type SubjectROI = { x: number; y: number; width: number; height: number };
+
+/** User declarations only. The server computes media hashes after import. */
+export type HomeCourtSourceInput = {
+  provider: "homecourt";
+  start_ms: number;
+  end_ms: number;
+  timing_mode: TimingMode;
+  recorded_at?: string;
+  camera_label?: string;
+  subject_roi?: SubjectROI;
+};
+
+export type MediaSource = Omit<HomeCourtSourceInput, "recorded_at" | "camera_label" | "subject_roi"> & {
+  original_filename: string;
+  original_sha256: string;
+  selected_sha256: string;
+  requested_start_ms?: number | null;
+  requested_end_ms?: number | null;
+  recorded_at?: string | null;
+  camera_label?: string | null;
+  subject_roi?: SubjectROI | null;
+};
+
+export function serializeHomeCourtSource(source: HomeCourtSourceInput): string {
+  const { provider, start_ms, end_ms, timing_mode, recorded_at, camera_label, subject_roi } = source;
+  return JSON.stringify({
+    provider, start_ms, end_ms, timing_mode,
+    ...(recorded_at ? { recorded_at } : {}),
+    ...(camera_label ? { camera_label } : {}),
+    ...(subject_roi ? { subject_roi: { x: subject_roi.x, y: subject_roi.y, width: subject_roi.width, height: subject_roi.height } } : {}),
+  });
+}
+
 export type PhaseSegment = {
   phase: PhaseName;
   start_frame: number;
@@ -95,7 +129,9 @@ export type AnalysisResult = {
   benchmark_phases: PhaseSegment[] | null;
   player_video_url: string | null;
   template_video_url: string | null;
+  template_source_video_url?: string | null;
   media_expires_at: string | null;
+  source?: MediaSource | null;
 };
 
 export type Keypoint = {
@@ -205,9 +241,10 @@ export async function health(): Promise<Response> {
   return fetch(`${API_BASE}/health`);
 }
 
-export async function submitAnalysis(file: File, signal?: AbortSignal): Promise<Response> {
+export async function submitAnalysis(file: File, signal?: AbortSignal, source?: HomeCourtSourceInput): Promise<Response> {
   const form = new FormData();
   form.append("video", file);
+  if (source) form.append("source", serializeHomeCourtSource(source));
   return fetch(`${API_BASE}/api/v1/analysis`, { method: "POST", body: form, signal });
 }
 

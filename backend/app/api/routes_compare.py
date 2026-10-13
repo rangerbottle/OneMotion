@@ -8,7 +8,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, ValidationError
 
+from app.api.validation import StringDetailRoute, validation_detail
 from app.compare import store
 from app.compare.alignment import (
     _match_pair,
@@ -17,30 +19,35 @@ from app.compare.alignment import (
     person_mask,
     sample_frame_indices,
 )
-from app.compare.report import build_report
+from app.compare.report import build_report, cleanup_report_files
 from app.compare.signals import suggest_offset_ms
 from app.core.config import Settings, get_settings
-from app.core.storage import atomic_write
+from app.core.media_import import prepare_upload
 from app.core.video import AnalysisBusy, inference_slot, validate_video
 from app.pose import get_backend
 from app.schemas.compare import (
     ActionTemplate,
+    ActionTemplateCreate,
     AffineTransform,
     ClipMeta,
+    ComparisonCreate,
     ComparisonState,
+    ComparisonUpdate,
     EventMarker,
     PhaseBoundary,
     Player,
+    PlayerCreate,
     TemporalAlignment,
 )
 from app.schemas.pose import ShotSequence
+from app.schemas.media_source import ClipImportRequest, parse_import_request
 
-router = APIRouter()
+
+router = APIRouter(route_class=StringDetailRoute)
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm"}
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 ID_RE = re.compile(r"^[a-f0-9]{12,32}$")
-REPORT_FILE_RE = re.compile(r"^[a-z0-9_]+\.png$")
+REPORT_FILE_RE = re.compile(r"^kf_(?:[a-f0-9]{32}_)?\d+\.png$")
 
 Cfg = Annotated[Settings, Depends(get_settings)]
 
@@ -54,17 +61,23 @@ def _check_id(entity_id: str, what: str) -> None:
         raise HTTPException(404, f"no {what} '{entity_id}'")
 
 
+def _validated_body[Model: BaseModel](model: type[Model], body: Model | dict) -> Model:
+    # Also validate direct route calls used by the model-free unit tests.
+    try:
+        return model.model_validate(body)
+    except ValidationError as exc:
+        raise HTTPException(422, validation_detail(exc.errors())) from exc
+
+
 # ---------------------------------------------------------------------------
 # players & templates
 # ---------------------------------------------------------------------------
 
 @router.post("/compare/players", response_model=Player, status_code=201)
-def create_player(body: dict, cfg: Cfg) -> Player:
-    name = str(body.get("name") or "").strip()
-    if not name:
-        raise HTTPException(422, "player name is required")
+def create_player(body: PlayerCreate, cfg: Cfg) -> Player:
+    body = _validated_body(PlayerCreate, body)
     store.ensure_dirs(cfg)
-    player = Player(player_id=_new_id(), name=name, created_at=datetime.now(timezone.utc))
+    player = Player(player_id=_new_id(), name=body.name, created_at=datetime.now(timezone.utc))
     with store.lock(cfg, player.player_id):
         store.save_player(cfg, player)
     return player
@@ -124,20 +137,17 @@ def _remove_report_dir(cfg: Settings, comparison_id: str) -> None:
 
 
 @router.post("/compare/players/{player_id}/templates", response_model=ActionTemplate, status_code=201)
-def create_template(player_id: str, body: dict, cfg: Cfg) -> ActionTemplate:
+def create_template(player_id: str, body: ActionTemplateCreate, cfg: Cfg) -> ActionTemplate:
     _check_id(player_id, "player")
+    body = _validated_body(ActionTemplateCreate, body)
     try:
         store.load_player(cfg, player_id)
     except FileNotFoundError:
         raise HTTPException(404, f"no player '{player_id}'")
-    name = str(body.get("name") or "").strip()
-    phases = [str(p).strip() for p in body.get("default_phases") or [] if str(p).strip()]
-    if not name or not phases:
-        raise HTTPException(422, "template name and at least one phase are required")
     store.ensure_dirs(cfg)
     template = ActionTemplate(
-        template_id=_new_id(), player_id=player_id, name=name,
-        default_phases=phases, created_at=datetime.now(timezone.utc),
+        template_id=_new_id(), player_id=player_id, name=body.name,
+        default_phases=body.default_phases, created_at=datetime.now(timezone.utc),
     )
     with store.lock(cfg, template.template_id):
         store.save_template(cfg, template)
@@ -160,6 +170,25 @@ def upload_clip(
     video: UploadFile,
     template_id: Annotated[str, Form()],
     kind: Annotated[str, Form()] = "comparison",
+    source: Annotated[str | None, Form()] = None,
+) -> ClipMeta:
+    try:
+        try:
+            import_request = parse_import_request(source)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return _upload_clip(player_id, cfg, video, template_id, kind, import_request)
+    finally:
+        video.file.close()
+
+
+def _upload_clip(
+    player_id: str,
+    cfg: Settings,
+    video: UploadFile,
+    template_id: str,
+    kind: str,
+    source: ClipImportRequest | None,
 ) -> ClipMeta:
     _check_id(player_id, "player")
     _check_id(template_id, "template")
@@ -167,9 +196,11 @@ def upload_clip(
         raise HTTPException(422, "kind must be 'baseline' or 'comparison'")
     try:
         store.load_player(cfg, player_id)
-        store.load_template(cfg, template_id)
+        template = store.load_template(cfg, template_id)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc))
+    if template.player_id != player_id:
+        raise HTTPException(422, "action template must belong to the selected player")
 
     ext = Path(video.filename or "clip.mp4").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -177,19 +208,24 @@ def upload_clip(
 
     store.ensure_dirs(cfg)
     clip_id = _new_id()
-    video_path = cfg.compare_videos_dir / f"{clip_id}{ext}"
-    try:
-        with store.lock(cfg, clip_id):
-            written = 0
-            with video_path.open("wb") as target:
-                while chunk := video.file.read(1024 * 1024):
-                    written += len(chunk)
-                    if written > MAX_UPLOAD_BYTES:
-                        raise HTTPException(413, "clip exceeds 50 MB")
-                    target.write(chunk)
+    video_path = None
+    with store.lock(cfg, clip_id):
+        try:
+            video_path, media_source = prepare_upload(
+                video, cfg.compare_videos_dir, clip_id, source,
+                concurrency=cfg.analysis_concurrency,
+            )
             validate_video(video_path)
             with inference_slot(cfg.analysis_concurrency):
-                sequence = get_backend(cfg).estimate_video(video_path)
+                backend = get_backend(cfg)
+                if media_source and media_source.subject_roi is not None:
+                    if backend.name != "yolo":
+                        raise ValueError("subject ROI requires the YOLO pose backend")
+                    sequence = backend.estimate_video(video_path, subject_roi=media_source.subject_roi)
+                else:
+                    sequence = backend.estimate_video(video_path)
+            if not sequence.frames or sequence.frames[0].t_ms < 0:
+                raise ValueError("clip must contain pose frames with nonnegative timestamps")
             meta = ClipMeta(
                 clip_id=clip_id,
                 player_id=player_id,
@@ -201,22 +237,22 @@ def upload_clip(
                 height=sequence.height,
                 frame_count=len(sequence.frames),
                 duration_ms=sequence.frames[-1].t_ms,
+                source=media_source,
                 created_at=datetime.now(timezone.utc),
             )
             store.save_clip_meta(cfg, meta)
             store.save_clip_pose(cfg, clip_id, sequence)
             return meta
-    except BaseException as exc:
-        video_path.unlink(missing_ok=True)
-        store.clip_meta_path(cfg, clip_id).unlink(missing_ok=True)
-        store.clip_pose_path(cfg, clip_id).unlink(missing_ok=True)
-        if isinstance(exc, AnalysisBusy):
-            raise HTTPException(429, str(exc), headers={"Retry-After": "5"}) from exc
-        if isinstance(exc, (ValueError, RuntimeError)):
-            raise HTTPException(422, str(exc)) from exc
-        raise
-    finally:
-        video.file.close()
+        except BaseException as exc:
+            if video_path is not None:
+                video_path.unlink(missing_ok=True)
+            store.clip_meta_path(cfg, clip_id).unlink(missing_ok=True)
+            store.clip_pose_path(cfg, clip_id).unlink(missing_ok=True)
+            if isinstance(exc, AnalysisBusy):
+                raise HTTPException(429, str(exc), headers={"Retry-After": "5"}) from exc
+            if isinstance(exc, (ValueError, RuntimeError)):
+                raise HTTPException(422, str(exc)) from exc
+            raise
 
 
 @router.get("/compare/clips/{clip_id}")
@@ -313,17 +349,14 @@ def _default_phases(names: list[str], frame_count: int) -> list[PhaseBoundary]:
 
 
 @router.post("/compare/comparisons", response_model=ComparisonState, status_code=201)
-def create_comparison(body: dict, cfg: Cfg) -> ComparisonState:
-    player_id = str(body.get("player_id") or "")
-    template_id = str(body.get("template_id") or "")
-    baseline_id = str(body.get("baseline_clip_id") or "")
-    comparison_id_clip = str(body.get("comparison_clip_id") or "")
-    for value, what in ((player_id, "player"), (template_id, "template"),
-                        (baseline_id, "clip"), (comparison_id_clip, "clip")):
-        _check_id(value, what)
-    if baseline_id == comparison_id_clip:
-        raise HTTPException(422, "baseline and comparison clips must differ")
+def create_comparison(body: ComparisonCreate, cfg: Cfg) -> ComparisonState:
+    body = _validated_body(ComparisonCreate, body)
+    player_id = body.player_id
+    template_id = body.template_id
+    baseline_id = body.baseline_clip_id
+    comparison_id_clip = body.comparison_clip_id
     try:
+        store.load_player(cfg, player_id)
         clip_a = store.load_clip_meta(cfg, baseline_id)
         clip_b = store.load_clip_meta(cfg, comparison_id_clip)
         template = store.load_template(cfg, template_id)
@@ -331,6 +364,8 @@ def create_comparison(body: dict, cfg: Cfg) -> ComparisonState:
         raise HTTPException(404, str(exc))
     if clip_a.player_id != player_id or clip_b.player_id != player_id:
         raise HTTPException(422, "both clips must belong to the selected player")
+    if template.player_id != player_id:
+        raise HTTPException(422, "action template must belong to the selected player")
     if clip_a.template_id != template_id or clip_b.template_id != template_id:
         raise HTTPException(422, "both clips must use the selected action template")
 
@@ -339,8 +374,14 @@ def create_comparison(body: dict, cfg: Cfg) -> ComparisonState:
     if video_a is None or video_b is None:
         raise HTTPException(410, "clip videos are no longer available")
 
-    seq_a = store.load_clip_pose(cfg, clip_a.clip_id)
-    seq_b = store.load_clip_pose(cfg, clip_b.clip_id)
+    try:
+        seq_a = store.load_clip_pose(cfg, clip_a.clip_id)
+        seq_b = store.load_clip_pose(cfg, clip_b.clip_id)
+    except FileNotFoundError:
+        raise HTTPException(410, "clip pose data is no longer available") from None
+    for clip, seq in ((clip_a, seq_a), (clip_b, seq_b)):
+        if not seq.frames or len(seq.frames) != clip.frame_count:
+            raise HTTPException(422, "clip pose data does not match the clip length")
 
     idx_a = sample_frame_indices(clip_a.frame_count)
     idx_b = sample_frame_indices(clip_b.frame_count)
@@ -391,58 +432,50 @@ def get_comparison(comparison_id: str, cfg: Cfg) -> ComparisonState:
 
 
 @router.patch("/compare/comparisons/{comparison_id}", response_model=ComparisonState)
-def patch_comparison(comparison_id: str, body: dict, cfg: Cfg) -> ComparisonState:
+def patch_comparison(comparison_id: str, body: ComparisonUpdate, cfg: Cfg) -> ComparisonState:
     _check_id(comparison_id, "comparison")
+    body = _validated_body(ComparisonUpdate, body)
     with store.lock(cfg, comparison_id):
         try:
             state = store.load_comparison(cfg, comparison_id)
         except FileNotFoundError:
             raise HTTPException(404, f"no comparison '{comparison_id}'")
-        clip_a = store.load_clip_meta(cfg, state.baseline_clip_id)
-        clip_b = store.load_clip_meta(cfg, state.comparison_clip_id)
+        try:
+            clip_a = store.load_clip_meta(cfg, state.baseline_clip_id)
+            clip_b = store.load_clip_meta(cfg, state.comparison_clip_id)
+        except FileNotFoundError:
+            raise HTTPException(410, "clip metadata is no longer available") from None
         updates = {}
-        if "spatial" in body:
-            updates["spatial"] = AffineTransform.model_validate(body["spatial"])
-        if "opacity_default" in body:
-            value = float(body["opacity_default"])
-            if not 0.0 <= value <= 1.0:
-                raise HTTPException(422, "opacity_default must be within [0, 1]")
-            updates["opacity_default"] = value
-        if "temporal" in body:
-            temporal = dict(body["temporal"])
-            for key in ("offset_ms_a", "offset_ms_b"):
-                if key in temporal:
-                    try:
-                        temporal[key] = int(temporal[key])
-                    except (TypeError, ValueError):
-                        raise HTTPException(422, f"{key} must be an integer") from None
-                    if temporal[key] < 0:
-                        raise HTTPException(422, f"{key} must be >= 0")
-            try:
-                merged = TemporalAlignment.model_validate(
-                    {**state.temporal.model_dump(), **temporal}
-                )
-            except ValueError as exc:
-                raise HTTPException(422, f"invalid temporal alignment: {exc}") from exc
+        if body.spatial is not None:
+            updates["spatial"] = body.spatial
+        if body.opacity_default is not None:
+            updates["opacity_default"] = body.opacity_default
+        if body.temporal is not None:
+            merged = TemporalAlignment.model_validate(
+                {**state.temporal.model_dump(), **body.temporal.model_dump(exclude_unset=True)}
+            )
+            for key, clip in (("offset_ms_a", clip_a), ("offset_ms_b", clip_b)):
+                if getattr(merged, key) > clip.duration_ms:
+                    raise HTTPException(422, f"{key} exceeds the clip duration")
+            if merged.suggested_offset_ms_b is not None and merged.suggested_offset_ms_b > clip_b.duration_ms:
+                raise HTTPException(422, "suggested_offset_ms_b exceeds the clip duration")
             updates["temporal"] = merged
         for key, frame_count in (("phases_a", clip_a.frame_count), ("phases_b", clip_b.frame_count)):
-            if key in body:
-                phases = [PhaseBoundary.model_validate(p) for p in body[key]]
+            phases = getattr(body, key)
+            if phases is not None:
                 _validate_phases(phases, frame_count)
                 updates[key] = phases
-        if "markers" in body:
-            try:
-                markers = [
-                    EventMarker.model_validate({**m, "created_at": m.get("created_at") or datetime.now(timezone.utc)})
-                    for m in body["markers"]
-                ]
-            except (TypeError, ValueError) as exc:
-                raise HTTPException(422, f"invalid markers: {exc}") from exc
-            count_a = clip_a.frame_count
+        if body.markers is not None:
+            markers = [EventMarker.model_validate(marker.model_dump()) for marker in body.markers]
             for marker in markers:
-                if marker.frame >= count_a:
+                if marker.frame >= clip_a.frame_count:
                     raise HTTPException(422, f"marker frame {marker.frame} exceeds clip length")
+                if marker.t_ms > clip_a.duration_ms:
+                    raise HTTPException(422, f"marker time {marker.t_ms} exceeds clip duration")
             updates["markers"] = markers
+        if any(key in updates and updates[key] != getattr(state, key)
+               for key in ("spatial", "temporal", "phases_a", "phases_b")):
+            updates["report"] = None
         state = state.model_copy(update=updates)
         store.save_comparison(cfg, state)
         return state
@@ -452,8 +485,6 @@ def _validate_phases(phases: list[PhaseBoundary], frame_count: int) -> None:
     if not phases:
         raise HTTPException(422, "at least one phase is required")
     for phase in phases:
-        if phase.start_frame > phase.end_frame:
-            raise HTTPException(422, f"phase '{phase.phase}' starts after it ends")
         if phase.end_frame >= frame_count:
             raise HTTPException(422, f"phase '{phase.phase}' exceeds the clip length")
 
@@ -545,21 +576,31 @@ def generate_report(comparison_id: str, cfg: Cfg) -> ComparisonState:
             state = store.load_comparison(cfg, comparison_id)
         except FileNotFoundError:
             raise HTTPException(404, f"no comparison '{comparison_id}'")
-        state = state.model_copy(update={"report": build_report(cfg, state)})
-        store.save_comparison(cfg, state)
-        return state
+        try:
+            updated = state.model_copy(update={"report": build_report(cfg, state)})
+            store.save_comparison(cfg, updated)
+        except BaseException:
+            cleanup_report_files(cfg, state)
+            raise
+        cleanup_report_files(cfg, updated)
+        return updated
 
 
 @router.get("/compare/reports/{comparison_id}/{filename}")
 def report_file(comparison_id: str, filename: str, cfg: Cfg) -> FileResponse:
     _check_id(comparison_id, "comparison")
     try:
-        store.load_comparison(cfg, comparison_id)
+        state = store.load_comparison(cfg, comparison_id)
     except FileNotFoundError:
         raise HTTPException(404, "no such comparison")
     if not REPORT_FILE_RE.fullmatch(filename):
         raise HTTPException(404, "no such report file")
+    if state.report is None:
+        raise HTTPException(410, "report is out of date; generate it again")
+    expected_url = f"/api/v1/compare/reports/{comparison_id}/{filename}"
+    if not any(frame.url == expected_url for frame in state.report.keyframes):
+        raise HTTPException(404, "no such report file")
     path = cfg.compare_reports_dir / comparison_id / filename
     if not path.is_file():
         raise HTTPException(404, "no such report file")
-    return FileResponse(path, filename=path.name)
+    return FileResponse(path, filename=path.name, headers={"Cache-Control": "no-store"})

@@ -49,6 +49,18 @@ def template_video_path(cfg: Settings, profile: BenchmarkProfile) -> Path | None
     return None
 
 
+def template_source_video_path(cfg: Settings, profile: BenchmarkProfile) -> Path | None:
+    """Optional full source, tied to the canonical clip's recorded source digest."""
+    candidate = cfg.raw_videos_dir / f"{profile.version}_source.mp4"
+    clips = profile.provenance.get("clips", [])
+    expected = next((clip.get("source_sha256") for clip in clips
+                     if Path(clip.get("path", "")).name == profile.canonical_video_filename), None)
+    if not expected or not candidate.is_file():
+        return None
+    from app.benchmarks.provenance import file_sha256
+    return candidate if file_sha256(candidate) == expected else None
+
+
 def list_templates(cfg: Settings) -> list[TemplateSummary]:
     try:
         profiles = [load_template(cfg, ACTIVE_TEMPLATE_ID)]

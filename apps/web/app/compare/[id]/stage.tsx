@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { AffineTransform } from "@/lib/compare-api";
 import { comparisonVideoUrl } from "@/lib/compare-api";
 import type { PoseFrame, ShotSequence } from "@/lib/api";
+import { frameAtTime, frameIntervalMs } from "@/lib/frame-time";
 
 export type ViewMode = "split" | "overlay" | "difference";
 
@@ -26,15 +27,7 @@ type FrameVideo = HTMLVideoElement & {
 };
 
 export function frameAt(frames: PoseFrame[], t_ms: number): PoseFrame | null {
-  if (!frames.length) return null;
-  let low = 0;
-  let high = frames.length - 1;
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    if (frames[mid].t_ms <= t_ms) low = mid;
-    else high = mid - 1;
-  }
-  return frames[low];
+  return frameAtTime(frames, t_ms);
 }
 
 // Origin-centered convention shared with the backend fit and report drawing:
@@ -125,6 +118,8 @@ export default function Stage({
   const offA = useRef<HTMLCanvasElement | null>(null);
   const offB = useRef<HTMLCanvasElement | null>(null);
   const onTickRef = useRef(onTick);
+  const lastNonce = useRef(-1);
+  const lastSeekOffsets = useRef({ a: offsetMsA, b: offsetMsB });
   useEffect(() => {
     onTickRef.current = onTick;
   }, [onTick]);
@@ -134,7 +129,7 @@ export default function Stage({
   const draw = useCallback(() => {
     const va = videoA.current;
     const vb = videoB.current;
-    if (!va || !vb) return;
+    if (!va || !vb || va.readyState < 2 || vb.readyState < 2) return;
     const msA = va.currentTime * 1000;
     const msB = vb.currentTime * 1000;
     const frameA = frameAt(poseA.frames, msA);
@@ -145,11 +140,11 @@ export default function Stage({
       const ctxB = canvasB.current?.getContext("2d");
       if (!ctxA || !ctxB) return;
       ctxA.clearRect(0, 0, width, height);
-      ctxB.clearRect(0, 0, width, height);
+      ctxB.clearRect(0, 0, poseB.width, poseB.height);
       ctxA.drawImage(va, 0, 0, width, height);
-      ctxB.drawImage(vb, 0, 0, width, height);
+      ctxB.drawImage(vb, 0, 0, poseB.width, poseB.height);
       if (frameA) drawSkeleton(ctxA, frameA, COLOR_A, width, height, null);
-      if (frameB) drawSkeleton(ctxB, frameB, COLOR_B, width, height, null);
+      if (frameB) drawSkeleton(ctxB, frameB, COLOR_B, poseB.width, poseB.height, null);
       return;
     }
 
@@ -165,10 +160,10 @@ export default function Stage({
       ctx.translate(ox, oy);
       ctx.rotate(rad);
       ctx.scale(spatial.scale, spatial.scale);
-      ctx.drawImage(vb, 0, 0, width, height);
+      ctx.drawImage(vb, 0, 0, poseB.width, poseB.height);
       ctx.restore();
       if (frameA) drawSkeleton(ctx, frameA, COLOR_A, width, height, null);
-      if (frameB) drawSkeleton(ctx, frameB, COLOR_B, width, height, spatial);
+      if (frameB) drawSkeleton(ctx, frameB, COLOR_B, poseB.width, poseB.height, spatial);
       return;
     }
     // difference: pixel diff highlight, red where the aligned frames diverge.
@@ -191,7 +186,7 @@ export default function Stage({
     ob.translate(ox, oy);
     ob.rotate(rad);
     ob.scale(spatial.scale, spatial.scale);
-    ob.drawImage(vb, 0, 0, width, height);
+    ob.drawImage(vb, 0, 0, poseB.width, poseB.height);
     ob.restore();
     const dataA = oa.getImageData(0, 0, width, height);
     const dataB = ob.getImageData(0, 0, width, height);
@@ -213,8 +208,24 @@ export default function Stage({
     }
     ctx.putImageData(out, 0, 0);
     if (frameA) drawSkeleton(ctx, frameA, COLOR_A, width, height, null);
-    if (frameB) drawSkeleton(ctx, frameB, COLOR_B, width, height, spatial);
+    if (frameB) drawSkeleton(ctx, frameB, COLOR_B, poseB.width, poseB.height, spatial);
   }, [mode, opacity, spatial, poseA, poseB, width, height]);
+
+  // Paused videos do not emit another rVFC when a view or alignment changes.
+  useEffect(() => {
+    const videos = [videoA.current, videoB.current];
+    for (const video of videos) {
+      video?.addEventListener("loadeddata", draw);
+      video?.addEventListener("seeked", draw);
+    }
+    draw();
+    return () => {
+      for (const video of videos) {
+        video?.removeEventListener("loadeddata", draw);
+        video?.removeEventListener("seeked", draw);
+      }
+    };
+  }, [draw]);
 
   // Playback clock: rVFC on A keeps the canvases in sync with real frames.
   useEffect(() => {
@@ -228,10 +239,12 @@ export default function Stage({
       const aligned = msA - offsetMsA;
       const expectedB = (aligned + offsetMsB) / 1000;
       const vb = videoB.current;
-      if (vb && Math.abs(vb.currentTime - expectedB) > 0.5 / Math.max(poseB.fps, 1)) {
+      if (lastNonce.current >= 0 && vb && !va.seeking && !vb.seeking && Math.abs(vb.currentTime - expectedB) * 1000 > frameIntervalMs(poseB.frames, expectedB * 1000, poseB.fps) / 2) {
         vb.currentTime = Math.max(0, expectedB);
       }
-      onTickRef.current(msA, vb ? vb.currentTime * 1000 : expectedB * 1000);
+      if (lastNonce.current >= 0 && !va.seeking && !vb?.seeking) {
+        onTickRef.current(msA, vb ? vb.currentTime * 1000 : expectedB * 1000);
+      }
       if (va.requestVideoFrameCallback) {
         handle = va.requestVideoFrameCallback(tick);
       } else {
@@ -247,25 +260,46 @@ export default function Stage({
       if (handle !== null && va.cancelVideoFrameCallback) va.cancelVideoFrameCallback(handle);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [draw, offsetMsA, offsetMsB, poseB.fps]);
+  }, [draw, offsetMsA, offsetMsB, poseB]);
 
   // External seek (timeline click / keyboard frame stepping): react only to
   // a new nonce — otherwise slider-driven draw() identity changes would
   // keep yanking playback back to the last seek point.
-  const lastNonce = useRef(0);
   useEffect(() => {
-    if (!seekRequest || seekRequest.nonce === lastNonce.current) return;
-    lastNonce.current = seekRequest.nonce;
     const va = videoA.current;
     const vb = videoB.current;
     if (!va || !vb) return;
-    va.pause();
-    vb.pause();
-    va.currentTime = Math.max(0, seekRequest.ms + offsetMsA) / 1000;
-    vb.currentTime = Math.max(0, seekRequest.ms + offsetMsB) / 1000;
-    draw();
-     
-  }, [seekRequest, offsetMsA, offsetMsB, draw]);
+    const applySeek = () => {
+      const nonce = seekRequest?.nonce ?? 0;
+      // Seeking before metadata is decoded can be discarded by the browser.
+      // Keep the latest request pending until both sources can accept it.
+      const offsets = lastSeekOffsets.current;
+      if (va.readyState < 1 || vb.readyState < 1 || (
+        lastNonce.current === nonce && offsets.a === offsetMsA && offsets.b === offsetMsB
+      )) return;
+      const ms = lastNonce.current === nonce
+        ? Math.max(0, va.currentTime * 1000 - offsets.a)
+        : seekRequest?.ms ?? 0;
+      lastNonce.current = nonce;
+      lastSeekOffsets.current = { a: offsetMsA, b: offsetMsB };
+      va.pause();
+      vb.pause();
+      va.currentTime = Math.max(0, ms + offsetMsA) / 1000;
+      vb.currentTime = Math.max(0, ms + offsetMsB) / 1000;
+      draw();
+      if (playing) {
+        void va.play().catch(() => undefined);
+        void vb.play().catch(() => undefined);
+      }
+    };
+    va.addEventListener("loadedmetadata", applySeek);
+    vb.addEventListener("loadedmetadata", applySeek);
+    applySeek();
+    return () => {
+      va.removeEventListener("loadedmetadata", applySeek);
+      vb.removeEventListener("loadedmetadata", applySeek);
+    };
+  }, [seekRequest, offsetMsA, offsetMsB, draw, playing]);
 
   useEffect(() => {
     const va = videoA.current;
@@ -291,27 +325,27 @@ export default function Stage({
   return (
     <div>
       <div className="grid gap-4" style={{ gridTemplateColumns: mode === "split" ? "1fr 1fr" : "1fr" }}>
-        <div className="relative overflow-hidden rounded-xl bg-zinc-950" style={aspect}>
+        <div className="relative overflow-hidden rounded-xl bg-[var(--surface-muted)]" style={aspect}>
           {mode === "split" ? (
             <canvas ref={canvasA} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
           ) : (
             <canvas ref={canvasMain} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
           )}
-          <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">A · 基准</span>
+          <span className="absolute left-2 top-2 rounded bg-[var(--foreground)]/80 px-2 py-0.5 text-xs text-[var(--surface)]">A · Baseline</span>
           {mode !== "split" ? (
-            <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">B · 对比</span>
+            <span className="absolute right-2 top-2 rounded bg-[var(--foreground)]/80 px-2 py-0.5 text-xs text-[var(--surface)]">B · Comparison</span>
           ) : null}
         </div>
         {mode === "split" ? (
-          <div className="relative overflow-hidden rounded-xl bg-zinc-950" style={aspect}>
-            <canvas ref={canvasB} width={width} height={height} className="absolute inset-0 h-full w-full object-contain" />
-            <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">B · 对比</span>
+          <div className="relative overflow-hidden rounded-xl bg-[var(--surface-muted)]" style={{ aspectRatio: `${poseB.width} / ${poseB.height}` }}>
+            <canvas ref={canvasB} width={poseB.width} height={poseB.height} className="absolute inset-0 h-full w-full object-contain" />
+            <span className="absolute left-2 top-2 rounded bg-[var(--foreground)]/80 px-2 py-0.5 text-xs text-[var(--surface)]">B · Comparison</span>
           </div>
         ) : null}
       </div>
       {/* Always-mounted playback elements; canvases above read their frames. */}
-      <video ref={videoA} src={urlA} muted playsInline preload="auto" className="hidden" />
-      <video ref={videoB} src={urlB} muted playsInline preload="auto" className="hidden" />
+      <video ref={videoA} crossOrigin="anonymous" src={urlA} muted playsInline preload="auto" className="hidden" />
+      <video ref={videoB} crossOrigin="anonymous" src={urlB} muted playsInline preload="auto" className="hidden" />
     </div>
   );
 }

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.schemas.pose import PoseFrame, ShotSequence
+from app.schemas.media_source import SubjectROI
 
 
 class PoseBackend(Protocol):
@@ -11,7 +12,7 @@ class PoseBackend(Protocol):
 
     name: str
 
-    def estimate_video(self, video_path: Path) -> ShotSequence:
+    def estimate_video(self, video_path: Path, *, subject_roi: SubjectROI | None = None) -> ShotSequence:
         """Extract a full pose sequence from a video clip."""
         ...
 

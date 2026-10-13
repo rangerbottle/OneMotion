@@ -4,6 +4,17 @@ import hashlib
 import json
 from pathlib import Path
 
+from app.core.config import Settings
+
+
+def verify_analysis_artifacts(cfg: Settings) -> list[str]:
+    """The same pinned inputs gate readiness and actual analysis requests."""
+    return verify_manifest(cfg.artifact_manifest, {
+        "models/yolo11n-pose.pt": cfg.model_path,
+        "data/benchmarks/curry_v3.json": cfg.benchmark_path,
+        "data/raw_videos/curry/curry_v3_reference.mp4": cfg.raw_videos_dir / "curry_v3_reference.mp4",
+    })
+
 
 def verify_manifest(manifest_path: Path, resolved_paths: dict[str, Path] | None = None) -> list[str]:
     if not manifest_path.is_file():
@@ -30,12 +41,16 @@ def verify_manifest(manifest_path: Path, resolved_paths: dict[str, Path] | None 
         if not path.is_file():
             failures.append(f"artifact missing: {path}")
             continue
-        expected_size = artifact.get("size")
-        if expected_size is not None and path.stat().st_size != expected_size:
-            failures.append(f"artifact size mismatch: {path}")
+        try:
+            expected_size = artifact.get("size")
+            if expected_size is not None and path.stat().st_size != expected_size:
+                failures.append(f"artifact size mismatch: {path}")
+                continue
+            with path.open("rb") as handle:
+                digest = hashlib.file_digest(handle, "sha256").hexdigest()
+        except OSError as exc:
+            failures.append(f"artifact unreadable: {path}: {exc}")
             continue
-        with path.open("rb") as handle:
-            digest = hashlib.file_digest(handle, "sha256").hexdigest()
         if digest != artifact.get("sha256"):
             failures.append(f"artifact checksum mismatch: {path}")
     if resolved_paths:

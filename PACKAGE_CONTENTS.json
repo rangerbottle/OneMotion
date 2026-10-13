@@ -1,0 +1,932 @@
+{
+  "schema_version": 1,
+  "kind": "github",
+  "source_revision": "3ca31a74a806234a4cafd3a9648ee7f07aafca92",
+  "created_at": "2026-10-13T14:09:36.795596+00:00",
+  "distribution": "source_only",
+  "video_files_included": 0,
+  "downloads_performed": false,
+  "dependencies_bundled": false,
+  "files": [
+    {
+      "path": ".dockerignore",
+      "size": 210,
+      "sha256": "bb7bfe4474dae27559235273e1edd9b0dd61945d5f508ab707949f16839eb09b"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "size": 2074,
+      "sha256": "b1c262afcf223b0c1c144ed0ab72e7272c174f7b2b05aca9e4a64b748e4a4ae5"
+    },
+    {
+      "path": ".gitignore",
+      "size": 754,
+      "sha256": "33389d229eef1bd2047a5765f5712253bdd2c696897df94c19a85c1006998880"
+    },
+    {
+      "path": "AGENTS.md",
+      "size": 16975,
+      "sha256": "9b5d589358ea758f0f7c957a5f6f6b2d89aac88dd91f02d8aa5e040f04ec7cc2"
+    },
+    {
+      "path": "CLAUDE.md",
+      "size": 9215,
+      "sha256": "726ee8021aec3ce2a5edc2e0853da30748c47fadf26c7494f458758598222c1a"
+    },
+    {
+      "path": "LICENSE",
+      "size": 1063,
+      "sha256": "d33910d240b8ac4dd90c002c6c9abb6264001aea6d7832cd83ec602781c85d90"
+    },
+    {
+      "path": "README.md",
+      "size": 12290,
+      "sha256": "d526eedc28aa5d26eb6a1efcccac525f937244d3406e36fbb640784d18208d06"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "size": 1095,
+      "sha256": "252eb69f2101d70f52f9d89bc170a6b22a3a1f3d48841d4f546c5fba7259ddcc"
+    },
+    {
+      "path": "apps/web/.gitignore",
+      "size": 515,
+      "sha256": "1a1a6182c571e9f4f911e018ef56fa99f5d3fdfb25b595a939d5ef1be128b5de"
+    },
+    {
+      "path": "apps/web/AGENTS.md",
+      "size": 678,
+      "sha256": "63f2c50380ed6303237cce215ce27af1d620d094c215e28d1b1538a3c070e3bb"
+    },
+    {
+      "path": "apps/web/CLAUDE.md",
+      "size": 11,
+      "sha256": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49"
+    },
+    {
+      "path": "apps/web/README.md",
+      "size": 907,
+      "sha256": "ee78bfbc961f6a3ab31d1ef6364dc665ccb3b436c4415a792c1e88e3c93a2c41"
+    },
+    {
+      "path": "apps/web/app/analysis/[id]/error.tsx",
+      "size": 569,
+      "sha256": "717f023f440e7cbb42613491ad1c3f0fcc7104fb010259de1ad02849dea07ad5"
+    },
+    {
+      "path": "apps/web/app/analysis/[id]/not-found.tsx",
+      "size": 365,
+      "sha256": "10747a1054ff5a1a0682796cb02e491fa6dd662f4675051e1d4f0d886c249718"
+    },
+    {
+      "path": "apps/web/app/analysis/[id]/page.tsx",
+      "size": 13325,
+      "sha256": "57c12b3c74510717732483433be6c61d7b29b83093c3ac8d866ec566f36b12d4"
+    },
+    {
+      "path": "apps/web/app/analysis/[id]/skeleton-replay.tsx",
+      "size": 34225,
+      "sha256": "2d74e99dd8d2c770b073ed84b9d9491cf7eb8175a41b79b735615df1bde73158"
+    },
+    {
+      "path": "apps/web/app/analyze/page.tsx",
+      "size": 2659,
+      "sha256": "04d334ca037cc73f80b7931ee7e67232c01391053d61ebc5548f59c2be547eb6"
+    },
+    {
+      "path": "apps/web/app/capture-guide.tsx",
+      "size": 1769,
+      "sha256": "cd3c46ec4ee2dd7f17cb556300a0f3e7144c95f62bb76c6be17fc49a56177625"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/comparison-controller.ts",
+      "size": 10115,
+      "sha256": "39b01939dea1bbd7a57709208e5637808400fc76fe9a761999954cf4b387e5b3"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/metrics-panel.tsx",
+      "size": 6436,
+      "sha256": "f0f27181990c6cb7ec0152d56281ea745b54b3ca4e024be5d8fb4069a8b191c2"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/page.tsx",
+      "size": 478,
+      "sha256": "c1a71240151360d47d9b16a32c969fba9daabc9573c5e7c6dd67b7a938a07b9c"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/stage.tsx",
+      "size": 13411,
+      "sha256": "4270de7938c16c4279ecbf9d1a2582684fd0b7a10c40eb225162a2ea31d7328c"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/timeline.tsx",
+      "size": 7950,
+      "sha256": "5973b425d532f6aad24712249bc727696ac461387bda090ff59b83e4a5a82101"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/use-comparison-workbench.ts",
+      "size": 550,
+      "sha256": "ba5a68ab56bc547f96a0b90a1dd8d88f0aded3ed5d7c1a359befa5d49726d1e6"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/workbench-controls.tsx",
+      "size": 4013,
+      "sha256": "2c98d02bc45b5bca940d87b16c014f5c1e291de38585ed755e3e1ad4ae4fb085"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/workbench-dialogs.tsx",
+      "size": 8994,
+      "sha256": "25b0d12ea0ec349109c8ec83f647d045cef79fa25de5b86d15b30691cb84cc0e"
+    },
+    {
+      "path": "apps/web/app/compare/[id]/workbench.tsx",
+      "size": 11122,
+      "sha256": "c9c6530bea7a6c0e156b937a58bdd8d15a539bcd784cc994a940dc6645a06cde"
+    },
+    {
+      "path": "apps/web/app/compare/new/page.tsx",
+      "size": 28886,
+      "sha256": "5ac7c696c39216dd986aed1cb88adfe3a592945a2dda6add4c4b2756d3e77a02"
+    },
+    {
+      "path": "apps/web/app/compare/page.tsx",
+      "size": 13955,
+      "sha256": "09d49e4271bffdc5b4aba33846ce03d2001c0a0290e21d4d3ea72a56d60d1ea6"
+    },
+    {
+      "path": "apps/web/app/components/analysis-entry-nav.tsx",
+      "size": 566,
+      "sha256": "61ff24bb3601414ebb0ce032b072d83551df7905655a5983b91ce3ac37745e40"
+    },
+    {
+      "path": "apps/web/app/components/app-nav.tsx",
+      "size": 923,
+      "sha256": "3a52a3515500242dc5ac3c9b2f46c5809872a78693cf185388c0890dd831580d"
+    },
+    {
+      "path": "apps/web/app/components/court-diagram.tsx",
+      "size": 2868,
+      "sha256": "4133a28e09d8b6b075cde65eab93dd8dc4c713b792d75ec381a6c8fbbbd5c933"
+    },
+    {
+      "path": "apps/web/app/components/media-source-details.tsx",
+      "size": 1686,
+      "sha256": "38ee2f1127324db208acd0c27b3731c30b212a5e515188035adae388e3bf8da1"
+    },
+    {
+      "path": "apps/web/app/components/reference-library-entry.tsx",
+      "size": 1122,
+      "sha256": "01453753f58cff87a3c5d31bb46f68b143af0817719a6ba01dc9856a4d1c6055"
+    },
+    {
+      "path": "apps/web/app/components/reference-source-video.tsx",
+      "size": 1466,
+      "sha256": "d88c183631bbdfa0261b4750649a709fe14b7446c4e27312580807f61c27df76"
+    },
+    {
+      "path": "apps/web/app/components/training-summary.tsx",
+      "size": 1772,
+      "sha256": "cccac15a8bcff5ff9c6d732cb67ef7da54fdf3c7d9836e5b62182c90c9d326db"
+    },
+    {
+      "path": "apps/web/app/drills/[id]/page.tsx",
+      "size": 4862,
+      "sha256": "44ac08257ab47e793ccde4a91e170becbdc1f7c3bebb26763c4f6f019852781c"
+    },
+    {
+      "path": "apps/web/app/drills/page.tsx",
+      "size": 6598,
+      "sha256": "15c8bddd369f41b82d1a7dda5c180a5c863a34b9ff9ea91bc7d048c93448db86"
+    },
+    {
+      "path": "apps/web/app/favicon.ico",
+      "size": 25931,
+      "sha256": "2b8ad2d33455a8f736fc3a8ebf8f0bdea8848ad4c0db48a2833bd0f9cd775932"
+    },
+    {
+      "path": "apps/web/app/fonts/Geist-Variable.woff2",
+      "size": 69652,
+      "sha256": "a369fcf5628ea2aa4e1b9e2ec6a5b3624e365bda588e1f0f2f12b564f728fbb8"
+    },
+    {
+      "path": "apps/web/app/fonts/OFL.txt",
+      "size": 4383,
+      "sha256": "942560b236adfa83745b2c64e5fc09ebaf91cb331751b1157eb92187e5d6e930"
+    },
+    {
+      "path": "apps/web/app/globals.css",
+      "size": 5886,
+      "sha256": "a33780a8038ed5d527f466e6f267429c4fdc06114eb60a860fef0a440feaff32"
+    },
+    {
+      "path": "apps/web/app/homecourt/clip-selector.tsx",
+      "size": 16795,
+      "sha256": "ac6151820032455208e3d71b52e65d14589399530fa2ed12ad7b3f9a86691b17"
+    },
+    {
+      "path": "apps/web/app/homecourt/page.tsx",
+      "size": 2415,
+      "sha256": "912fed6fcc80076905515488daffbef5f4fc2691981060fe85565c9258e6a20a"
+    },
+    {
+      "path": "apps/web/app/layout.tsx",
+      "size": 1618,
+      "sha256": "48a6d0363652a76445c89f0e896c2a84e0cd0cbde80df5a932b8163bf3121a53"
+    },
+    {
+      "path": "apps/web/app/page.tsx",
+      "size": 3896,
+      "sha256": "6b9939e66db7d31706c0a5794e7cb36d0c75b3bc1fab0b5c8072ae61e6f13b42"
+    },
+    {
+      "path": "apps/web/app/progress/page.tsx",
+      "size": 7534,
+      "sha256": "8a3c3b46b0b861935c961aff133d46b09b829a9e1733e1fcac8f43f76960a251"
+    },
+    {
+      "path": "apps/web/app/record/page.tsx",
+      "size": 7792,
+      "sha256": "d12f73ed88c34f3a9e606dac0f362c26dc081f44a9648a51a417754e6123edd0"
+    },
+    {
+      "path": "apps/web/app/references/page.tsx",
+      "size": 7906,
+      "sha256": "ec0db05b9bc4b840f9095727721746bc6b1ec2e8ba10d8cbf3faf2cb79337db7"
+    },
+    {
+      "path": "apps/web/app/references/reference-player.tsx",
+      "size": 3047,
+      "sha256": "320a0ae6e7b978b05b2e8d3a9d1f9cd9833b3b45bb1ffb3770ed8280c70630b2"
+    },
+    {
+      "path": "apps/web/app/training/page.tsx",
+      "size": 979,
+      "sha256": "5a1793eaffab545c8c139341e736626b13cc9bebb9121785a99e7984021079c1"
+    },
+    {
+      "path": "apps/web/app/training/runner.tsx",
+      "size": 15077,
+      "sha256": "88b1c39aebc6f17ed7dc88d8550b479cd8258152ab98b06a222a17b010402315"
+    },
+    {
+      "path": "apps/web/app/upload/page.tsx",
+      "size": 2968,
+      "sha256": "b48e68e09ac9827b202664dbd7bfc32fef6c0e28ea29ff0aa5f482c683ebf20f"
+    },
+    {
+      "path": "apps/web/eslint.config.mjs",
+      "size": 465,
+      "sha256": "870f1adccecf3051cbcd9fd307cef51d7633cf510979c181a81f4b1797273493"
+    },
+    {
+      "path": "apps/web/lib/api.ts",
+      "size": 8533,
+      "sha256": "e1fd5e9b8e8d763d343c8280c33a3bd634c9f04b6284f28c269a04800f03900e"
+    },
+    {
+      "path": "apps/web/lib/clip.ts",
+      "size": 1960,
+      "sha256": "6df6b0977f8c6d5109cda18ef48d0c8ecf0002f7df8a302d2de068ad569a8651"
+    },
+    {
+      "path": "apps/web/lib/compare-api.ts",
+      "size": 7675,
+      "sha256": "3c61bc941ec5a137517272e3ec26e5b4299eae979ca61f9c7c9b04425cb874d9"
+    },
+    {
+      "path": "apps/web/lib/curry-references.ts",
+      "size": 7704,
+      "sha256": "d574b365ae1ba0d59e5bb6723bea5224184e271f0c2e5c9a37ccc4d4905d19dc"
+    },
+    {
+      "path": "apps/web/lib/drills.ts",
+      "size": 18262,
+      "sha256": "c5860df48a6a8a2d5fc99d9a74e7c10e034606a6071e37485e5b5f174372ada6"
+    },
+    {
+      "path": "apps/web/lib/frame-time.ts",
+      "size": 2205,
+      "sha256": "09dc1962196d573fffdd5fbbe781cf80d6285a0263d4678737eb19376f39aebd"
+    },
+    {
+      "path": "apps/web/lib/homecourt.ts",
+      "size": 3470,
+      "sha256": "5e4dc59ece06eb7f27bb195a8b5256419d46e8baa895de9f8d561851210f7837"
+    },
+    {
+      "path": "apps/web/lib/training-api.ts",
+      "size": 1784,
+      "sha256": "11f908dc7a89e81da6719f618c4ca969df9397528a2c651085cf6cf145729979"
+    },
+    {
+      "path": "apps/web/lib/training-draft.ts",
+      "size": 5474,
+      "sha256": "885b4b6f3f854b1ea13e3c0a7f36663b3a3722dd843f341aed04e9dba98d4882"
+    },
+    {
+      "path": "apps/web/lib/use-analysis.ts",
+      "size": 2608,
+      "sha256": "3b5d9230de14cfc1439bfcaf3456dcd50d7662325df02d0727c0bca4ead87d30"
+    },
+    {
+      "path": "apps/web/next.config.ts",
+      "size": 689,
+      "sha256": "7c466f8342dbf6669457e9eb38ea40671f14cb07e17808be7591697928929565"
+    },
+    {
+      "path": "apps/web/package-lock.json",
+      "size": 239834,
+      "sha256": "fb1aa5e309f68e2f34698cae810bfeba232a82f46fd6ea0d76b98b2f40e6e863"
+    },
+    {
+      "path": "apps/web/package.json",
+      "size": 757,
+      "sha256": "72d1a6eab3c44e279a26986dea9b0be99b0311c3d081993fce17636316bc1e85"
+    },
+    {
+      "path": "apps/web/playwright.config.ts",
+      "size": 662,
+      "sha256": "00ca23b6be4f1f8d7b304ea3749eb20859f3b3b405ef3aecf8b19c2fd365205f"
+    },
+    {
+      "path": "apps/web/postcss.config.mjs",
+      "size": 94,
+      "sha256": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde"
+    },
+    {
+      "path": "apps/web/tests/api-server.mjs",
+      "size": 10855,
+      "sha256": "7433a4424289fee67c13454e873400e9dacfa22a3b3f53c28d6e79a72013d27a"
+    },
+    {
+      "path": "apps/web/tests/app-shell.spec.ts",
+      "size": 10154,
+      "sha256": "0ea8c2dd4aaa200d82569306617ab0b4bc37f443d22ddf17530e8f883f2343f1"
+    },
+    {
+      "path": "apps/web/tests/compare-lifecycle.spec.ts",
+      "size": 10700,
+      "sha256": "82b103f3e6209f2a1d15b71abb48bba18558ea5caf69f51f39d406e2edb64000"
+    },
+    {
+      "path": "apps/web/tests/compare-regressions.spec.ts",
+      "size": 7426,
+      "sha256": "87affec5e6848d177bc9bd4df9f6a6bc433e2603ac615dad62e0704621a2a8b6"
+    },
+    {
+      "path": "apps/web/tests/compare-vfr.spec.ts",
+      "size": 5405,
+      "sha256": "7b95a02cc42f378e6ba978aab04b9554f9256ecea0ea1f350394bda0b14f6efe"
+    },
+    {
+      "path": "apps/web/tests/compare-wizard.spec.ts",
+      "size": 7755,
+      "sha256": "0742322a01b5e62bc1ea536b63b6aad06db40291d2de058a4fa80e71ab9c26e3"
+    },
+    {
+      "path": "apps/web/tests/drills.spec.ts",
+      "size": 5385,
+      "sha256": "d7cce04090983b11a45f3716db5439022d359aec65736f883f046e5193eb896e"
+    },
+    {
+      "path": "apps/web/tests/fixtures/README.md",
+      "size": 711,
+      "sha256": "aa5fad094da390187d8859c6711964cc6ce18ef330e7675c328025c40f17dd9b"
+    },
+    {
+      "path": "apps/web/tests/fixtures/compare.json",
+      "size": 2978,
+      "sha256": "59d5df261d91cd55e8321599dd2477be702c5f5b1a8804b03f15b09e29e3c9b5"
+    },
+    {
+      "path": "apps/web/tests/fixtures/replay.json",
+      "size": 42646,
+      "sha256": "158084fa7e490f1f57a223e24201e1dd8e9f42857417b086d753b3b46dc569f3"
+    },
+    {
+      "path": "apps/web/tests/fixtures/report.json",
+      "size": 2789,
+      "sha256": "ea8b2483d5a0a27c4f329dba6c83007cbc917c77ec87309309170c92fc1ec34a"
+    },
+    {
+      "path": "apps/web/tests/flows.spec.ts",
+      "size": 9543,
+      "sha256": "55252c1bcc302be82696e53e0aba9c945f86951b8688f32151d06ce034acf6b3"
+    },
+    {
+      "path": "apps/web/tests/generate-fixtures.mjs",
+      "size": 3024,
+      "sha256": "30eca71bdc5bf8cd9d279d4e6fceb76aa5b1ccb1b5ba811ae70402c2cae43c69"
+    },
+    {
+      "path": "apps/web/tests/homecourt.spec.ts",
+      "size": 11696,
+      "sha256": "0f6205276f0b3cd4d707899fdce75d477942c7906fc5564efa0681443f7f0ef2"
+    },
+    {
+      "path": "apps/web/tests/record-preview.spec.ts",
+      "size": 6274,
+      "sha256": "e653231dbd5e4be98e8a82d3cb92a22663efd6a3920bdb42f456068487ce83f1"
+    },
+    {
+      "path": "apps/web/tests/references.spec.ts",
+      "size": 9976,
+      "sha256": "afab7b34256e8287fa73526dd3d92ddbb00ed827e7a459ad4c0dc4ecc56ad0d8"
+    },
+    {
+      "path": "apps/web/tests/training.spec.ts",
+      "size": 17363,
+      "sha256": "eb314ec32abdec9c584d7c4b47691ea86f6dd6b4b15eb23ba7dc3ef782ed49bb"
+    },
+    {
+      "path": "apps/web/tsconfig.json",
+      "size": 666,
+      "sha256": "be18523b23b78b6e1a876ddd107d330f0168bddf09d751b57e0b5edce69c66f3"
+    },
+    {
+      "path": "backend/app/__init__.py",
+      "size": 45,
+      "sha256": "b92501d69bc6296909cc8252893f4d1893710026e48296a780505817d5c9cdc6"
+    },
+    {
+      "path": "backend/app/analysis/__init__.py",
+      "size": 60,
+      "sha256": "eba2891d91caf338ef138ef038c9ecb32c18fd5bf3d48b31923f56a72aba636d"
+    },
+    {
+      "path": "backend/app/analysis/biomechanics.py",
+      "size": 7262,
+      "sha256": "92bd5d995cf8b5388da1d1fb6b1591c1a9bcc1318916a506dc375d424e94e317"
+    },
+    {
+      "path": "backend/app/analysis/capture_quality.py",
+      "size": 3505,
+      "sha256": "3e66f7dbe1d1c0395cc60bbcf05a4cc7a26bc058ae80b4c1076a5660290cd8b1"
+    },
+    {
+      "path": "backend/app/analysis/compare.py",
+      "size": 4545,
+      "sha256": "d4fc1a9ef003553514411947ceb70b61925c0461f9f0db8e2fe8becb0a8e59b8"
+    },
+    {
+      "path": "backend/app/analysis/feedback.py",
+      "size": 5023,
+      "sha256": "e3401bd83955a39ae9e28dd884da397125c7d3e97a39cdecc9197acd903f3927"
+    },
+    {
+      "path": "backend/app/analysis/metrics.py",
+      "size": 11984,
+      "sha256": "c73b2e83eeb596c9919e9e8f9189341e7458c44968ac85590ab192c22487da05"
+    },
+    {
+      "path": "backend/app/analysis/phases.py",
+      "size": 9403,
+      "sha256": "55a2ff906aadf5e24e131e65b0a4171b9fb6a2dda0c5060e8e705a3f6217baf4"
+    },
+    {
+      "path": "backend/app/analysis/results.py",
+      "size": 7376,
+      "sha256": "e4f8ea31964145d91c5a1b20378aadad872f5ea23f011de84ea0eae3e505d14b"
+    },
+    {
+      "path": "backend/app/analysis/series.py",
+      "size": 2217,
+      "sha256": "a3aa07566b509e51e1472944acc5f89dfe65421bd223822b09ae0c04971daf38"
+    },
+    {
+      "path": "backend/app/api/__init__.py",
+      "size": 19,
+      "sha256": "1f54ad6d81835514ba83e264dd451fd7b89b033d4af0851adbb35f3cc91a36b0"
+    },
+    {
+      "path": "backend/app/api/router.py",
+      "size": 625,
+      "sha256": "d43d9eea4c2359103914fe2fc82e0be621f7cb7cd550f3003b66fec56bf364b1"
+    },
+    {
+      "path": "backend/app/api/routes_analysis.py",
+      "size": 17519,
+      "sha256": "97757469d579a985135817c8782332f0af4302fdc826d9f858668c65718724f3"
+    },
+    {
+      "path": "backend/app/api/routes_benchmarks.py",
+      "size": 1060,
+      "sha256": "1c78874f1a7d529bc55df6f02d858a12d7ca74e8ab47fb6f72495c49ec0c2aac"
+    },
+    {
+      "path": "backend/app/api/routes_compare.py",
+      "size": 24184,
+      "sha256": "4a4f17203a6bfaeeb2baaf4a1e12644819ac331d88fb6e5f8310da3e6025a036"
+    },
+    {
+      "path": "backend/app/api/routes_health.py",
+      "size": 2105,
+      "sha256": "176e2d2635c0718b7eb18ce5db5bdd72edf35fb2c46ad30e8e848f914fecf605"
+    },
+    {
+      "path": "backend/app/api/routes_pose.py",
+      "size": 606,
+      "sha256": "1fe8b9bc992b9fbd664e0f5a3bcbd55814929eb9218eb70aaad3abf8d492af64"
+    },
+    {
+      "path": "backend/app/api/routes_templates.py",
+      "size": 2249,
+      "sha256": "16b077740e83585f54a6e607f11981116ce6517b756596fe56c1f7509df0549d"
+    },
+    {
+      "path": "backend/app/api/routes_training.py",
+      "size": 1650,
+      "sha256": "56017972cdadeab23dd48a509b0897af07cc0b4a8e471730bcd21e96732577c9"
+    },
+    {
+      "path": "backend/app/api/validation.py",
+      "size": 1039,
+      "sha256": "2d55756ec5b8167f9d325b2a770324453fc66cd181571c1bf177c25ddf816f35"
+    },
+    {
+      "path": "backend/app/benchmarks/__init__.py",
+      "size": 49,
+      "sha256": "8041cd55787d41837e89df61632762d26d2e62cab088a3a27910619805181034"
+    },
+    {
+      "path": "backend/app/benchmarks/curry.py",
+      "size": 7800,
+      "sha256": "2c376185413d656b168a421e8051fc68aebfafb613ee40c972fe10273d86c12e"
+    },
+    {
+      "path": "backend/app/benchmarks/provenance.py",
+      "size": 1871,
+      "sha256": "9531c9d88620fc91376e848a801c7c3e1c54057c93456d79708db6c5dcc0a247"
+    },
+    {
+      "path": "backend/app/benchmarks/templates.py",
+      "size": 3836,
+      "sha256": "c9cdbca5f331c49c366b3e75a2d09eec54249ee6fcdb2753fda38051bc01a442"
+    },
+    {
+      "path": "backend/app/compare/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "backend/app/compare/alignment.py",
+      "size": 5268,
+      "sha256": "20de9fd8816ff0f401b1f258501d99a39f6c96dfce1a7560386c73ba7c1beada"
+    },
+    {
+      "path": "backend/app/compare/report.py",
+      "size": 12027,
+      "sha256": "321df9408d34e5f00d1ac5387d4890b1032f2711efd922002daab4c18932cec5"
+    },
+    {
+      "path": "backend/app/compare/signals.py",
+      "size": 2988,
+      "sha256": "e1a04c0b82d0cd5eb6c7dec091526f3b4756a37457be3998a97b58e5c12bbf73"
+    },
+    {
+      "path": "backend/app/compare/store.py",
+      "size": 5105,
+      "sha256": "7be4101d9854fd9441efd9b5758370d10c2129f1b4b851a281aa28b1955009b3"
+    },
+    {
+      "path": "backend/app/core/__init__.py",
+      "size": 51,
+      "sha256": "e6e9cac8a74d4262da0b9e5a6c18672ba83529e1f98df9f8b01149177b22b1c3"
+    },
+    {
+      "path": "backend/app/core/artifacts.py",
+      "size": 2495,
+      "sha256": "a914c270a1592ed4943716aba0e346cdf541acf019e3e7fff98e7c8e0a1affa8"
+    },
+    {
+      "path": "backend/app/core/config.py",
+      "size": 2993,
+      "sha256": "89e63e1334a231b63a351aa3ad82da82836a068c9ffe9c22962b30eabcd437e0"
+    },
+    {
+      "path": "backend/app/core/media_import.py",
+      "size": 14118,
+      "sha256": "353ce37bbbb2efd8a99ae1930b94c764c62fecf2ebb3ad91b8dcf7f4b0bd83eb"
+    },
+    {
+      "path": "backend/app/core/retention.py",
+      "size": 4979,
+      "sha256": "b7be247948504c303efb9076794b927b6c67a5e20f367062371f9615f5ea69aa"
+    },
+    {
+      "path": "backend/app/core/storage.py",
+      "size": 3378,
+      "sha256": "f8632b510824db3e4941717c7706ed22c1e950e8c005c84c7fabbeb273be8513"
+    },
+    {
+      "path": "backend/app/core/video.py",
+      "size": 2214,
+      "sha256": "286e76510d71c1f13bf0e78b9e0af5ad114e162bd570a54f460d6d4644c8e69c"
+    },
+    {
+      "path": "backend/app/main.py",
+      "size": 1889,
+      "sha256": "a103aff6ccd692a7f8077470cb4cfee2aed998577becb32571ba86d3c813b291"
+    },
+    {
+      "path": "backend/app/pose/__init__.py",
+      "size": 1005,
+      "sha256": "9d1029c228b1e50f07bd3a12099a81ed7be5723cde6092e71da27a0d0f697411"
+    },
+    {
+      "path": "backend/app/pose/ball_detector.py",
+      "size": 6464,
+      "sha256": "39e7d552694b06506004c195290245016fb55b8c4c966ca1d049ed022b1ac9d3"
+    },
+    {
+      "path": "backend/app/pose/base.py",
+      "size": 679,
+      "sha256": "992f28f45c68e405aba91b6880bbfe5a10892f5816a5ed0578912b9817e3af77"
+    },
+    {
+      "path": "backend/app/pose/mediapipe_backend.py",
+      "size": 5290,
+      "sha256": "e7573d476c77202cdd9468a17760620e9b65df63f8affdc710070a08b01ee019"
+    },
+    {
+      "path": "backend/app/pose/rfdetr_backend.py",
+      "size": 858,
+      "sha256": "b486af866bbebe3423ce41e64a16c3f86e95aa91711552f964ccc69530af3c9e"
+    },
+    {
+      "path": "backend/app/pose/yolo_backend.py",
+      "size": 5543,
+      "sha256": "f92126a091d834a8b4d6c8c144a308c8cd39f73cd498507a95c00b22c128b97e"
+    },
+    {
+      "path": "backend/app/schemas/__init__.py",
+      "size": 61,
+      "sha256": "27ffa7b7bd067eccd9b1ca8aab5273348a87839b5a51c4b6abedf8ad9a680171"
+    },
+    {
+      "path": "backend/app/schemas/analysis.py",
+      "size": 3914,
+      "sha256": "adcbbf34b7955f793835343dd87440826e904c0c678d23dbe767d27bb6810f1c"
+    },
+    {
+      "path": "backend/app/schemas/benchmark.py",
+      "size": 2989,
+      "sha256": "10c7e14c868e94eb65a98e9928c3dcfe65ee936b57d564103445536ee53017c2"
+    },
+    {
+      "path": "backend/app/schemas/compare.py",
+      "size": 7802,
+      "sha256": "8cde83669d4d7d715a2e9b58712a044f7de15b911d63bdc128b3b9df9b4f5b9e"
+    },
+    {
+      "path": "backend/app/schemas/media_source.py",
+      "size": 3001,
+      "sha256": "f2016de30ce6a6fe4c560500b88e07930b8c445a5d159b3ddb2e1ef56b5e7f91"
+    },
+    {
+      "path": "backend/app/schemas/pose.py",
+      "size": 3255,
+      "sha256": "f78d92d7cfaa0b3ad129c255a5764f1a90d91ddd2c0d97cd19aced6955c3a160"
+    },
+    {
+      "path": "backend/app/schemas/template.py",
+      "size": 2593,
+      "sha256": "7b55f9cb361494038ebf30ecf59640145f2c47c1af9b558f162aa982820e900e"
+    },
+    {
+      "path": "backend/app/schemas/training.py",
+      "size": 4653,
+      "sha256": "308e9e2d0516eafb15dfa4e69a8df168ae23c733066009184eda6ff3f6f084a3"
+    },
+    {
+      "path": "backend/app/training/__init__.py",
+      "size": 75,
+      "sha256": "7285aead6469d509dd5129983fa51579f78ef271b6dee2bd966b7c74075e5836"
+    },
+    {
+      "path": "backend/app/training/store.py",
+      "size": 5227,
+      "sha256": "f89bd543ec342f8da7bf6857aa335d79e8c14f6699d52247c18fc9bf79e48a3f"
+    },
+    {
+      "path": "backend/pyproject.toml",
+      "size": 838,
+      "sha256": "92fe6b0e84f973f187d94fb7a0c47efb3968d807188a85d084796efad052fa3e"
+    },
+    {
+      "path": "backend/scripts/build_curry_benchmark.py",
+      "size": 1289,
+      "sha256": "22ef12c857857e15fb950445c7670aa77f9959782a7a325244c9f8a57c46b0db"
+    },
+    {
+      "path": "backend/scripts/check_branding.py",
+      "size": 708,
+      "sha256": "cfeee8ac85b21cabbe761e34d4eedbe0ae75f505bf44352b8c6df8da8fbd71a3"
+    },
+    {
+      "path": "backend/scripts/evaluate.py",
+      "size": 5148,
+      "sha256": "4854fc35fd4febcb7c948cd8b55b7d912a906e1f23fcf7450a7e1a6dc764a46c"
+    },
+    {
+      "path": "backend/scripts/prepare_reference_clip.py",
+      "size": 6405,
+      "sha256": "dc1840a768efa0a55ab562bb7220c583a45d88a7d72c17fb81f843d1c38bf407"
+    },
+    {
+      "path": "backend/scripts/release_artifacts.py",
+      "size": 2325,
+      "sha256": "acf79aed0eeef3c19587585379b96e83380b19d71ff65fca2c00417d0de01e4f"
+    },
+    {
+      "path": "backend/scripts/smoke_analysis.py",
+      "size": 3718,
+      "sha256": "b1b94a9ab72a41b3ca23e4583e13942b3f9e8fcfb32fc4791c802b46dc67fb50"
+    },
+    {
+      "path": "backend/scripts/smoke_homecourt.py",
+      "size": 7487,
+      "sha256": "c99509bf9008bf1bec76b7c539f122e63f4578c05d00765cd700b22f21698b91"
+    },
+    {
+      "path": "backend/scripts/split_shots.py",
+      "size": 3276,
+      "sha256": "872dde54dfd6ed4507dd6cc0d4128ddf3361645bf89bc503e9107e5a420a0a3b"
+    },
+    {
+      "path": "backend/tests/test_analysis_results.py",
+      "size": 6727,
+      "sha256": "f439039190b18bf6ebee2879098afca17791766b432b47f4277f95278e40e326"
+    },
+    {
+      "path": "backend/tests/test_api.py",
+      "size": 2970,
+      "sha256": "0b4a8c4aeed74577ade3376e499eb0a868c5ba2fef072bb4cc540b8cf9795ee0"
+    },
+    {
+      "path": "backend/tests/test_ball_track.py",
+      "size": 4840,
+      "sha256": "645a2a1cc84f656a2012e322c968a2ffea57c9ff7d403d1d88709a71bd75d2d5"
+    },
+    {
+      "path": "backend/tests/test_biomechanics.py",
+      "size": 3034,
+      "sha256": "167c6d7ed80c4a094da28739accdc93b5d9cd2e45de0b7dae4dfba34702e5a0a"
+    },
+    {
+      "path": "backend/tests/test_compare.py",
+      "size": 10484,
+      "sha256": "0d43a44a5325e4f07adc413e317b8d5cce18d8d8eadafc06c007f1000772b5ce"
+    },
+    {
+      "path": "backend/tests/test_compare_algorithms.py",
+      "size": 7043,
+      "sha256": "6f537264f5df3198700f3c6999133ea854d61f0602d83fced2f89c32f672fd3f"
+    },
+    {
+      "path": "backend/tests/test_compare_validation.py",
+      "size": 11013,
+      "sha256": "2ae7e0c56310513afc83b6120b99f0b2356f25f866044e6082f5f64b80035935"
+    },
+    {
+      "path": "backend/tests/test_comparison.py",
+      "size": 2296,
+      "sha256": "21a4d4903ee70b04ae82fdea893cbb716bd3a90adc9b3c226fa5fde45bc04e0c"
+    },
+    {
+      "path": "backend/tests/test_core.py",
+      "size": 1883,
+      "sha256": "7b97708002ffb1922fe9c839f2e7b8bb4dcc2da89622a4d774ab399bdcfd5400"
+    },
+    {
+      "path": "backend/tests/test_homecourt_subject.py",
+      "size": 2700,
+      "sha256": "b0b5bae98d0cb7fc584a17ee5f4949f72b4a2e7851ff1b7c9ef69975f616ecdc"
+    },
+    {
+      "path": "backend/tests/test_media_import.py",
+      "size": 20172,
+      "sha256": "8273b4874ef705818953be6593da0f068aadd7c80b04d7ec3e7ec02e93fd1aa6"
+    },
+    {
+      "path": "backend/tests/test_media_preparation.py",
+      "size": 1628,
+      "sha256": "f9480cb87518e7b1d8065d49389e921a27a40b78ef8e7efd610371aff0649679"
+    },
+    {
+      "path": "backend/tests/test_regressions.py",
+      "size": 22427,
+      "sha256": "14e9adc75632361a2bd53a9872b9e67e722388c85b7af0a3b7e68c2b741179bf"
+    },
+    {
+      "path": "backend/tests/test_report.py",
+      "size": 8413,
+      "sha256": "0372f0a9d7bc07f436bd60a1c71c649e9976194d410fcf15211a553475b9f723"
+    },
+    {
+      "path": "backend/tests/test_retention_imports.py",
+      "size": 4794,
+      "sha256": "e8bcb51cfbacf6bf12f5021a637131bf1837d6882b91682ce3572103e91cc289"
+    },
+    {
+      "path": "backend/tests/test_source_routes.py",
+      "size": 16247,
+      "sha256": "73938f4a4edb6a60ec1f27450b08f6e122e02a1948b522f27c018ab7f59fdcf8"
+    },
+    {
+      "path": "backend/tests/test_training.py",
+      "size": 13039,
+      "sha256": "9a7c211752106c3b515a15a480a5d25c94449790a67ddeea16bdc25e649bcefc"
+    },
+    {
+      "path": "backend/uv.lock",
+      "size": 306150,
+      "sha256": "601e7fc83d776af703e545c9f9204e3827b23b4e28c421a7cf51b719d79bfaa3"
+    },
+    {
+      "path": "compose.yaml",
+      "size": 1968,
+      "sha256": "e70e5d8b71efd4fdd927604ee4181e5b4cd30cea9d1ff2f4f7523b0375b82eec"
+    },
+    {
+      "path": "data/.gitkeep",
+      "size": 144,
+      "sha256": "4364c7a6d950dd0ada69173c8e7c3931ff9a27108fdfb38e3c14f362066bf716"
+    },
+    {
+      "path": "dev.sh",
+      "size": 21740,
+      "sha256": "3b7fbb5086ef2cb804ac5933828703f6de7525e1feb1e4340d93e3b6e3de5b3c"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "size": 29562,
+      "sha256": "3eeaa29a8c959b6afa347d68aba6178691f7fc8d1eeafdbb0152a9aa21b06fc7"
+    },
+    {
+      "path": "docs/CURRY_REFERENCES.md",
+      "size": 7465,
+      "sha256": "ece6ef443b4f68a6e07501fe18bb69750a4807cea228f2b055ec7feca2eb19b1"
+    },
+    {
+      "path": "docs/EVALUATION.md",
+      "size": 3054,
+      "sha256": "ad88319f4ac4adf5a2faca6bb8c9c9430f31c6176fb72d6875f05b4e1f6fd9d1"
+    },
+    {
+      "path": "docs/IMPROVEMENTS.md",
+      "size": 20388,
+      "sha256": "23c5094b6a7a524cc3e89734dae86137d2f39317bc86734e8271f4d7fe1ab438"
+    },
+    {
+      "path": "docs/PACKAGING.md",
+      "size": 3950,
+      "sha256": "05adca0eaebe89200bc07c2c6e561949af32bfb5c6a4cb81dc145c372bf80da2"
+    },
+    {
+      "path": "docs/PRD.md",
+      "size": 9489,
+      "sha256": "37884848904df3fa00a84034a92489bfc5b4e89a87afaec25ed4b1addbd0f90e"
+    },
+    {
+      "path": "docs/TRAINING.md",
+      "size": 8334,
+      "sha256": "d0669dbeb44851991c214e47e5ba3fca98031bc9bcfa1fe1631a1b2a7df53d6d"
+    },
+    {
+      "path": "docs/research/curry-reference-candidates.json",
+      "size": 13377,
+      "sha256": "9311a8dbaafc4484e9a34ec5290811e67de68df4260f09132a6249f9fae1d16e"
+    },
+    {
+      "path": "infra/.env.example",
+      "size": 749,
+      "sha256": "17a4688c78abcc6e68c1de5441b2c444d15747879646c0ddb0342fd64f043f33"
+    },
+    {
+      "path": "infra/docker/backend.Dockerfile",
+      "size": 1227,
+      "sha256": "0636296c68d1ea20d9e3f84ebea8ecc3e3f3670ec33a1436650cd44799b03cef"
+    },
+    {
+      "path": "infra/docker/web.Dockerfile",
+      "size": 920,
+      "sha256": "2be0358a6865dc7d179be08d707dc6b4f199a3574719d6037d09763e592ae923"
+    },
+    {
+      "path": "infra/nginx.conf",
+      "size": 1603,
+      "sha256": "64555d9100bfeb06ac8674f274e63567ca65692646cc2fa443e001501a2be9e2"
+    },
+    {
+      "path": "scripts/package_release.py",
+      "size": 10463,
+      "sha256": "65b1473e342625916e9955f46788c6572ff77a34fa4fbeb8b89ea21ac67d4755"
+    },
+    {
+      "path": "tests/test_packaging.py",
+      "size": 5297,
+      "sha256": "66f6d7007175bb2a3eb615b22c7c58dbc157aa78d5eb2e0f0338007552358cf1"
+    }
+  ]
+}

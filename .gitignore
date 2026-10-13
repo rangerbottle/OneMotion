@@ -23,6 +23,8 @@ data/keypoints/
 data/benchmarks/
 data/uploads/
 data/analyses/
+data/compare/
+data/training/
 models/
 *.onnx
 *.pt
@@ -41,6 +43,9 @@ models/
 data/.locks/
 
 # Local artifact manifest — generated from the local-only media by
-# scripts/release_artifacts.py (run automatically by `./dev.sh start`).
+# scripts/release_artifacts.py (initial setup only is automatic).
 infra/artifacts.json
 
+# Procedural browser-test videos (npm test regenerates them)
+apps/web/tests/fixtures/*.webm
+apps/web/tests/fixtures/.generated.json

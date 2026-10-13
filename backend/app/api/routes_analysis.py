@@ -10,29 +10,36 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 
-from app.analysis import compare, feedback
+from app.api.validation import StringDetailRoute
 from app.analysis.biomechanics import compute_frame_biomechanics
 from app.analysis.capture_quality import assess_capture
 from app.analysis.metrics import compute_all, measurement_evidence
 from app.analysis.phases import segment
+from app.analysis.results import (
+    MeasurementEvidence,
+    apply_comparison_policy,
+    build_comparison,
+    measurement_inputs,
+    migration_evidence,
+)
 from app.benchmarks.templates import (
     ACTIVE_TEMPLATE_ID,
     load_template,
     template_video_path,
+    template_source_video_path,
 )
 from app.core.config import Settings, get_settings
+from app.core.artifacts import verify_analysis_artifacts
 from app.core.storage import analysis_lock, atomic_write as _atomic_write
 from app.core.retention import media_expired
+from app.core.media_import import prepare_upload
 from app.core.video import AnalysisBusy, MAX_CLIP_DURATION_MS, inference_slot, validate_video
 from app.pose import get_backend
 from app.pose.ball_detector import track_window
-from app.schemas.analysis import (
-    AnalysisQuality,
-    AnalysisResult,
-    CaptureQuality,
-    MetricValue,
-)
+from app.schemas.analysis import AnalysisResult
+from app.schemas.benchmark import BenchmarkProfile
 from app.schemas.pose import ShotSequence
+from app.schemas.media_source import ClipImportRequest, parse_import_request
 from app.schemas.template import (
     ReplayPayload,
     ReplaySync,
@@ -40,10 +47,9 @@ from app.schemas.template import (
     SyncAnchor,
 )
 
-router = APIRouter()
+router = APIRouter(route_class=StringDetailRoute)
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm"}
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 ANALYSIS_ID_RE = re.compile(r"^[a-f0-9]{12,32}$")
 
 Cfg = Annotated[Settings, Depends(get_settings)]
@@ -70,7 +76,7 @@ def _load_result(cfg: Settings, analysis_id: str) -> AnalysisResult:
     return result
 
 
-def _resolve_template(cfg: Settings, template_id: str | None):
+def _resolve_template(cfg: Settings, template_id: str | None) -> BenchmarkProfile:
     requested = template_id or ACTIVE_TEMPLATE_ID
     if requested != ACTIVE_TEMPLATE_ID:
         raise HTTPException(
@@ -83,75 +89,23 @@ def _resolve_template(cfg: Settings, template_id: str | None):
         raise HTTPException(503, f"curry_v3 reference is unavailable: {exc}")
 
 
-def _quality(
-    metrics: list[MetricValue], phases, capture: CaptureQuality | None
-) -> AnalysisQuality:
-    reliable = [
-        metric for metric in metrics if metric.reliable and metric.value is not None
-    ]
-    missing = [
-        metric.name for metric in metrics if not metric.reliable or metric.value is None
-    ]
-    degraded = [phase.phase for phase in phases if phase.degraded or phase.censored]
-    expected = len(metrics)
-    coverage = len(reliable) / max(expected, 1)
-    reasons = []
-    if missing:
-        reasons.append(f"{len(missing)} of {expected} metrics lack reliable evidence")
-    if degraded:
-        reasons.append(
-            "one or more shooting phases contain missing or clipped pose data"
-        )
-    if capture and capture.status != "pass":
-        reasons.extend(capture.reasons)
-    status = "valid"
-    if len(reliable) < 3:
-        status = "insufficient"
-    elif missing or degraded or (capture and capture.status != "pass"):
-        status = "degraded"
-    return AnalysisQuality(
-        status=status,
-        coverage=round(coverage, 3),
-        valid_metrics=len(reliable),
-        expected_metrics=expected,
-        missing_metrics=missing,
-        degraded_phases=degraded,
-        reasons=reasons,
-    )
-
-
 def _compare_result(
     cfg: Settings,
     base: AnalysisResult,
-    template,
+    template: BenchmarkProfile,
     player_metrics: dict[str, float],
-    evidence: dict[str, dict[str, float | bool | str | None]],
+    evidence: MeasurementEvidence,
 ) -> AnalysisResult:
-    deltas = compare.metric_deltas(player_metrics, template, evidence)
-    quality = _quality(deltas, base.phases, base.capture_quality)
-    overall = compare.similarity_score(deltas)
-    if quality.status == "insufficient":
-        overall = None
-    return base.model_copy(
+    return build_comparison(base, template, player_metrics, evidence).model_copy(
         update={
-            "benchmark_version": template.version,
-            "template_id": template.version,
-            "template_name": template.display_name or template.version,
-            "timing_mode": template.timing_mode,
-            "timing_reliable": template.timing_reliable,
-            "similarity_score": overall,
-            "form_score": compare.similarity_score(deltas, "form"),
-            "timing_score": compare.similarity_score(deltas, "timing"),
-            "quality": quality,
-            "metrics": deltas,
-            "measurement_evidence": evidence,
-            "feedback": feedback.rank(deltas),
-            "benchmark_sequence": None,
-            "benchmark_phases": template.canonical_phases,
             "template_video_url": (
                 f"/api/v1/templates/{template.version}/video"
                 if template_video_path(cfg, template)
                 else None
+            ),
+            "template_source_video_url": (
+                f"/api/v1/templates/{template.version}/source-video"
+                if template_source_video_path(cfg, template) else None
             ),
         }
     )
@@ -162,32 +116,55 @@ def create_analysis(
     video: UploadFile,
     cfg: Cfg,
     template_id: Annotated[str | None, Form()] = None,
+    source: Annotated[str | None, Form()] = None,
+) -> AnalysisResult:
+    try:
+        try:
+            import_request = parse_import_request(source)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return _create_analysis(video, cfg, template_id, import_request)
+    finally:
+        video.file.close()
+
+
+def _create_analysis(
+    video: UploadFile,
+    cfg: Settings,
+    template_id: str | None,
+    source: ClipImportRequest | None,
 ) -> AnalysisResult:
     ext = Path(video.filename or "clip.mp4").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(422, f"unsupported video type '{ext}' — use mp4/mov/webm")
     template = _resolve_template(cfg, template_id)
+    failures = verify_analysis_artifacts(cfg)
+    if failures:
+        raise HTTPException(503, "analysis artifacts are unavailable: " + "; ".join(failures))
 
     _ensure_dirs(cfg)
     analysis_id = uuid.uuid4().hex
-    video_path = cfg.uploads_dir / f"{analysis_id}{ext}"
+    video_path = None
     result_path = _result_path(cfg, analysis_id)
     keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
     # Hold the same lock used by cleanup until the report commits or rollback completes.
     with analysis_lock(cfg.data_dir, analysis_id):
         try:
-            written = 0
-            with video_path.open("wb") as target:
-                while chunk := video.file.read(1024 * 1024):
-                    written += len(chunk)
-                    if written > MAX_UPLOAD_BYTES:
-                        raise HTTPException(413, "clip exceeds 50 MB")
-                    target.write(chunk)
+            video_path, media_source = prepare_upload(
+                video, cfg.uploads_dir, analysis_id, source,
+                concurrency=cfg.analysis_concurrency,
+            )
             validate_video(video_path)
             # Take the concurrency slot only after the body is written and
             # validated — a slow client must not block other analyses' slots.
             with inference_slot(cfg.analysis_concurrency):
-                sequence = get_backend(cfg).estimate_video(video_path)
+                backend = get_backend(cfg)
+                if media_source and media_source.subject_roi is not None:
+                    if backend.name != "yolo":
+                        raise ValueError("subject ROI requires the YOLO pose backend")
+                    sequence = backend.estimate_video(video_path, subject_roi=media_source.subject_roi)
+                else:
+                    sequence = backend.estimate_video(video_path)
                 if not sequence.frames:
                     raise ValueError("video contains no decoded frames")
                 if sequence.frames[-1].t_ms - sequence.frames[0].t_ms > MAX_CLIP_DURATION_MS:
@@ -206,6 +183,7 @@ def create_analysis(
                     metrics=[],
                     feedback=[],
                     capture_quality=capture_quality,
+                    source=media_source,
                     player_video_url=f"/api/v1/analysis/{analysis_id}/video",
                     media_expires_at=expires_at,
                 )
@@ -215,14 +193,13 @@ def create_analysis(
                 return result
         except BaseException as exc:
             for path in (video_path, keypoints_path, result_path):
-                path.unlink(missing_ok=True)
+                if path is not None:
+                    path.unlink(missing_ok=True)
             if isinstance(exc, AnalysisBusy):
                 raise HTTPException(429, str(exc), headers={"Retry-After": "5"}) from exc
             if isinstance(exc, (ValueError, RuntimeError)):
                 raise HTTPException(422, str(exc)) from exc
             raise
-        finally:
-            video.file.close()
 
 
 def _active_result(cfg: Settings, analysis_id: str) -> AnalysisResult:
@@ -234,50 +211,59 @@ def _active_result(cfg: Settings, analysis_id: str) -> AnalysisResult:
 def _active_result_locked(cfg: Settings, analysis_id: str) -> AnalysisResult:
     base = _load_result(cfg, analysis_id)
     is_active = (base.template_id or base.benchmark_version) == ACTIVE_TEMPLATE_ID
-    if media_expired(base.media_expires_at):
-        # Old reports may contain inline pose data. Never return expired media in JSON.
-        if base.player_sequence is not None or base.benchmark_sequence is not None:
-            base = base.model_copy(update={"player_sequence": None, "benchmark_sequence": None})
-            _atomic_write(_result_path(cfg, analysis_id), base.model_dump_json(indent=2))
-        if not is_active:
-            raise HTTPException(410, "legacy analysis pose data has expired")
-        return base
-    if is_active and base.capture_quality is not None:
-        return base
+    expired = media_expired(base.media_expires_at)
     keypoints_path = cfg.keypoints_dir / f"{analysis_id}.json"
-    if not keypoints_path.is_file():
-        if is_active:
-            return base
-        raise HTTPException(
-            410,
-            "legacy analysis cannot be migrated because its pose data has expired",
-        )
-    sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
+    if expired and not is_active:
+        # Expired legacy reports may still contain inline media. Strip it even
+        # though their absent replay data prevents migration to the active template.
+        if base.player_sequence is not None or base.benchmark_sequence is not None:
+            stripped = base.model_copy(update={"player_sequence": None, "benchmark_sequence": None})
+            _atomic_write(_result_path(cfg, analysis_id), stripped.model_dump_json(indent=2))
+        raise HTTPException(410, "legacy analysis pose data has expired")
     if is_active:
-        result = base.model_copy(
-            update={"capture_quality": assess_capture(sequence, base.phases)}
+        result = base
+        if not expired and base.capture_quality is None and keypoints_path.is_file():
+            sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
+            result = base.model_copy(update={"capture_quality": assess_capture(sequence, base.phases)})
+        result = apply_comparison_policy(result)
+        if expired:
+            # Compact reports remain readable; replay and inline media do not.
+            result = result.model_copy(update={"player_sequence": None, "benchmark_sequence": None})
+    else:
+        if not keypoints_path.is_file():
+            raise HTTPException(
+                410,
+                "legacy analysis cannot be migrated because its pose data has expired",
+            )
+        sequence = ShotSequence.model_validate_json(keypoints_path.read_text(encoding="utf-8"))
+        phases = segment(sequence)
+        migrated_base = base.model_copy(update={
+            "phases": phases,
+            "capture_quality": assess_capture(sequence, phases),
+        })
+        result = _compare_result(
+            cfg,
+            migrated_base,
+            _resolve_template(cfg, ACTIVE_TEMPLATE_ID),
+            compute_all(sequence, phases),
+            migration_evidence(base, measurement_evidence(sequence, phases)),
         )
+    if result != base:
         _atomic_write(_result_path(cfg, analysis_id), result.model_dump_json(indent=2))
-        return result
-    phases = segment(sequence)
-    capture_quality = assess_capture(sequence, phases)
-    migrated_base = base.model_copy(
-        update={"phases": phases, "capture_quality": capture_quality}
-    )
-    result = _compare_result(
-        cfg,
-        migrated_base,
-        _resolve_template(cfg, ACTIVE_TEMPLATE_ID),
-        compute_all(sequence, phases),
-        measurement_evidence(sequence, phases),
-    )
-    _atomic_write(_result_path(cfg, analysis_id), result.model_dump_json(indent=2))
     return result
 
 
 @router.get("/analysis/{analysis_id}", response_model=AnalysisResult)
 def get_analysis(analysis_id: str, cfg: Cfg) -> AnalysisResult:
-    return _active_result(cfg, analysis_id)
+    result = _active_result(cfg, analysis_id)
+    # Optional source media can be restored after a compact report was created.
+    try:
+        source = template_source_video_path(cfg, _resolve_template(cfg, result.template_id))
+    except HTTPException:
+        source = None
+    return result.model_copy(update={"template_source_video_url": (
+        f"/api/v1/templates/{ACTIVE_TEMPLATE_ID}/source-video" if source else None
+    )})
 
 
 @router.get("/analysis/{analysis_id}/comparison", response_model=AnalysisResult)
@@ -286,18 +272,7 @@ def compare_with_template(
 ) -> AnalysisResult:
     base = _active_result(cfg, analysis_id)
     template = _resolve_template(cfg, template_id)
-    player_metrics = {
-        metric.name: metric.value for metric in base.metrics if metric.value is not None
-    }
-    evidence = base.measurement_evidence or {
-        metric.name: {
-            "confidence": metric.confidence,
-            "coverage": metric.coverage,
-            "reliable": metric.reliable,
-            "reason": metric.unavailable_reason,
-        }
-        for metric in base.metrics
-    }
+    player_metrics, evidence = measurement_inputs(base)
     return _compare_result(cfg, base, template, player_metrics, evidence)
 
 
@@ -371,9 +346,13 @@ def replay(analysis_id: str, cfg: Cfg, template_id: str | None = None) -> Replay
             anchors=anchors,
             unavailable_reason=sync_reason,
         ),
-        player_biomechanics=compute_frame_biomechanics(player_sequence, base.phases),
+        player_biomechanics=compute_frame_biomechanics(
+            player_sequence, base.phases,
+            timing_reliable=base.source is None or base.source.timing_mode == "realtime",
+        ),
         template_biomechanics=compute_frame_biomechanics(
-            template.canonical_sequence, template.canonical_phases
+            template.canonical_sequence, template.canonical_phases,
+            timing_reliable=template.timing_reliable,
         ),
     )
 

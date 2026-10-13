@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.pose import ShotSequence
+from app.schemas.media_source import MediaSource
 
 Phase = Literal["dip", "load", "lift", "release", "follow_through"]
 
@@ -88,6 +89,7 @@ class AnalysisResult(BaseModel):
     timing_reliable: bool = False
     quality: AnalysisQuality | None = None
     capture_quality: CaptureQuality | None = None
+    source: MediaSource | None = None
     phases: list[PhaseSegment]
     metrics: list[MetricValue]
     feedback: list[FeedbackItem]  # top 3, priority ordered
@@ -99,4 +101,5 @@ class AnalysisResult(BaseModel):
     benchmark_phases: list[PhaseSegment] | None = None
     player_video_url: str | None = None
     template_video_url: str | None = None
+    template_source_video_url: str | None = None
     media_expires_at: datetime | None = None

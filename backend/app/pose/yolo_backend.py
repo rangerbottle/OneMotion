@@ -4,7 +4,8 @@ Outputs COCO-17 keypoints natively, so no schema mapping is needed
 (docs/ARCHITECTURE.md §3). Weights auto-download on first use to
 `models/yolo11n-pose.pt` (gitignored).
 
-Multi-person frames: the largest bounding box is taken as the shooter.
+Select the largest person initially, then follow the nearest eligible center.
+An optional full-frame subject rectangle excludes other people from selection.
 """
 
 from pathlib import Path
@@ -16,6 +17,7 @@ import cv2
 import numpy as np
 
 from app.core.config import REPO_ROOT
+from app.schemas.media_source import SubjectROI
 from app.schemas.pose import (
     COCO17_KEYPOINTS,
     Keypoint,
@@ -37,7 +39,7 @@ class YoloPoseBackend:
         self._imgsz = imgsz
         self._timeout_s = timeout_s
 
-    def estimate_video(self, video_path: Path) -> ShotSequence:
+    def estimate_video(self, video_path: Path, *, subject_roi: SubjectROI | None = None) -> ShotSequence:
         cap = cv2.VideoCapture(str(video_path))
         frames: list[PoseFrame] = []
         started = time.monotonic()
@@ -56,7 +58,7 @@ class YoloPoseBackend:
                 if frames and t_ms <= frames[-1].t_ms:
                     raise ValueError("video timestamps must strictly increase")
                 check_decode_budget(idx, t_ms, started, self._timeout_s)
-                keypoints, detected_center = self._estimate_bgr(bgr, previous_center)
+                keypoints, detected_center = self._estimate_bgr(bgr, previous_center, subject_roi)
                 check_decode_budget(idx, t_ms, started, self._timeout_s)
                 if detected_center is not None:
                     previous_center = detected_center
@@ -85,6 +87,7 @@ class YoloPoseBackend:
         self,
         bgr: np.ndarray,
         previous_center: np.ndarray | None = None,
+        subject_roi: SubjectROI | None = None,
     ) -> tuple[list[Keypoint], np.ndarray | None]:
         h, w = bgr.shape[:2]
         results = self._model.predict(
@@ -97,16 +100,29 @@ class YoloPoseBackend:
         boxes = result.boxes.xywh.cpu().numpy()
         areas = boxes[:, 2] * boxes[:, 3]
         centers = boxes[:, :2]
+        eligible = np.arange(len(boxes))
+        if subject_roi is not None:
+            # Keep the full source canvas. Only constrain the identity choice;
+            # cropping would change the coordinates used by camera alignment.
+            left, top = subject_roi.x * w, subject_roi.y * h
+            right = (subject_roi.x + subject_roi.width) * w
+            bottom = (subject_roi.y + subject_roi.height) * h
+            eligible = np.flatnonzero(
+                (centers[:, 0] >= left) & (centers[:, 0] <= right)
+                & (centers[:, 1] >= top) & (centers[:, 1] <= bottom)
+            )
+            if not len(eligible):
+                return [], None
         if previous_center is None:
-            best = int(np.argmax(areas))
+            best = int(eligible[np.argmax(areas[eligible])])
         else:
             distances = np.linalg.norm(centers - previous_center, axis=1)
             normalized = distances / max(float(np.hypot(w, h)), 1.0)
-            close = np.where(normalized <= 0.25)[0]
+            close = eligible[normalized[eligible] <= 0.25]
             best = (
                 int(close[np.argmin(normalized[close])])
                 if len(close)
-                else int(np.argmax(areas))
+                else int(eligible[np.argmax(areas[eligible])])
             )
         xy = result.keypoints.xy[best].cpu().numpy()  # (17, 2) pixels
         conf = (

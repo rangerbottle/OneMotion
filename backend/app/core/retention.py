@@ -2,12 +2,16 @@
 
 import json
 import logging
+import re
+import shutil
+import stat
 from datetime import datetime, timezone
 
 from app.core.config import Settings
 from app.core.storage import analysis_lock, atomic_write
 
 logger = logging.getLogger(__name__)
+SOURCE_DIRECTORY_RE = re.compile(r"\.([a-f0-9]{12,32})-source-[a-zA-Z0-9_-]+")
 
 
 def media_expired(expires_at: datetime | str | None) -> bool:
@@ -17,6 +21,37 @@ def media_expired(expires_at: datetime | str | None) -> bool:
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc) >= expires
+
+
+def _cleanup_source_imports(cfg: Settings, now: float, ttl: float) -> int:
+    """Recover HomeCourt originals abandoned before TemporaryDirectory cleanup."""
+    removed = 0
+    for directory in (cfg.uploads_dir, cfg.compare_videos_dir):
+        if directory.is_symlink():
+            continue
+        for path in directory.glob(".*-source-*"):
+            match = SOURCE_DIRECTORY_RE.fullmatch(path.name)
+            if match is None:
+                continue
+            # Both upload routes hold this exact entity-id lock while importing.
+            # Age alone cannot distinguish a crashed process from active work.
+            with analysis_lock(cfg.data_dir, match[1], blocking=False) as acquired:
+                if not acquired:
+                    continue
+                try:
+                    info = path.lstat()
+                    if not stat.S_ISDIR(info.st_mode) or now - info.st_mtime < ttl:
+                        continue
+                    # rmtree unlinks child symlinks rather than following them;
+                    # lstat above also excludes a symlink to the source directory.
+                    shutil.rmtree(path)
+                    removed += 1
+                except (FileNotFoundError, PermissionError):
+                    # A concurrent sweep or an open Windows file can defer cleanup.
+                    pass
+                except OSError:
+                    logger.exception("Could not expire source import %s", path.name)
+    return removed
 
 
 def cleanup_expired(cfg: Settings) -> int:
@@ -66,4 +101,4 @@ def cleanup_expired(cfg: Settings) -> int:
                     # Windows holds media files open while a response streams;
                     # a failed unlink here just means "try again next sweep".
                     pass
-    return removed
+    return removed + _cleanup_source_imports(cfg, now, ttl)

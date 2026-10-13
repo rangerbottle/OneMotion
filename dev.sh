@@ -8,7 +8,7 @@
 #   ./dev.sh stop      stop both servers
 #   ./dev.sh restart   stop then start
 #   ./dev.sh logs      tail both server logs
-#   ./dev.sh media     verify the local analysis artifacts; rebuild/re-pin any gaps
+#   ./dev.sh media     verify local artifacts; create an initial release, refuse changed pins
 #   ./dev.sh benchmark <video>   build the Curry v3 reference clip + benchmark from a source
 #
 # Env overrides:
@@ -164,14 +164,17 @@ check_reference_media() {
 # Extract the reference clip, build the benchmark, and re-pin the local-only
 # manifest from <source-video>. Returns non-zero (without exiting) on any
 # failure so both `dev.sh benchmark` and the gap-fill in `start` can react.
-build_benchmark_artifacts() { # source-video start-ms end-ms time-scale [source-url]
-  local source="$1" start_ms="$2" end_ms="$3" time_scale="$4" source_url="${5:-}"
+build_benchmark_artifacts() { # source-video start-ms end-ms [attested time-scale] [source-url]
+  local source="$1" start_ms="$2" end_ms="$3" time_scale="${4:-}" source_url="${5:-}"
 
   [ -f "$source" ] || { err "source video not found: $source"; return 1; }
   [ "$end_ms" -gt "$start_ms" ] 2>/dev/null || { err "--end-ms ($end_ms) must exceed --start-ms ($start_ms)"; return 1; }
 
-  local timing_mode="realtime"
-  [ "$time_scale" = "1" ] || timing_mode="slow_motion"
+  local timing_mode="unknown"
+  if [ -n "$time_scale" ]; then
+    timing_mode="slow_motion"
+    [ "$time_scale" != "1" ] || timing_mode="realtime"
+  fi
 
   ensure_uv_on_path
   command -v uv >/dev/null || install_uv
@@ -192,8 +195,9 @@ build_benchmark_artifacts() { # source-video start-ms end-ms time-scale [source-
     "$CURRY_SOURCE" "$CURRY_REFERENCE"
     --start-ms "$start_ms" --end-ms "$end_ms"
     --provenance "$CURRY_MANIFEST"
-    --timing-mode "$timing_mode" --time-scale "$time_scale"
+    --timing-mode "$timing_mode"
   )
+  [ -z "$time_scale" ] || prep_args+=( --time-scale "$time_scale" )
   [ -n "$source_url" ] && prep_args+=( --source-url "$source_url" )
 
   info "1/3  extracting ${start_ms}-${end_ms} ms reference clip + provenance manifest…"
@@ -222,10 +226,10 @@ build_benchmark_artifacts() { # source-video start-ms end-ms time-scale [source-
 }
 
 # Verify the local-only analysis artifacts and close any gap we can close
-# unattended: rebuild the Curry v3 benchmark from the staged source video, or
-# just re-pin the (gitignored) manifest when the media is already in place.
-# Never fatal — the app still starts and /ready reports whatever is still
-# missing. Run automatically by `dev.sh start`; also `./dev.sh media`.
+# First setup can build from the staged source and create a local manifest.
+# Existing release pins must never be silently replaced when files change.
+# A changed pinned release is fatal; an initial setup without media may start
+# with analysis unavailable. Run automatically by `dev.sh start`; also `./dev.sh media`.
 ensure_reference_media() {
   ensure_uv_on_path
   command -v uv >/dev/null || install_uv
@@ -233,13 +237,17 @@ ensure_reference_media() {
 
   if [ ! -f "$POSE_MODEL" ]; then
     warn "pose model missing: models/yolo11n-pose.pt"
-    warn "  restore it (git checkout -- models/yolo11n-pose.pt) or fetch it per README"
+    warn "  restore the local file or obtain the approved weights per README"
   fi
 
   if [ ! -f "$CURRY_BENCHMARK" ] || [ ! -f "$CURRY_REFERENCE" ]; then
+    if [ -f "$REPO_ROOT/infra/artifacts.json" ]; then
+      err "pinned reference artifacts are missing — restore the release or explicitly rebuild with ./dev.sh benchmark <video>"
+      return 1
+    fi
     if [ -f "$CURRY_SOURCE" ] && [ -f "$POSE_MODEL" ]; then
       info "Curry v3 benchmark missing — rebuilding from data/raw_videos/curry/curry_v3_source.mp4 …"
-      build_benchmark_artifacts "$CURRY_SOURCE" 0 3000 1 \
+      build_benchmark_artifacts "$CURRY_SOURCE" 0 3000 "" \
         || warn "automatic rebuild failed — run ./dev.sh benchmark <video>; shot analysis stays disabled (503)"
       return 0
     fi
@@ -254,7 +262,12 @@ ensure_reference_media() {
     return 0
   fi
 
-  info "artifact manifest missing or out of date — re-pinning infra/artifacts.json (local only) …"
+  if [ -e "$REPO_ROOT/infra/artifacts.json" ]; then
+    err "pinned artifacts failed verification — no hashes were changed"
+    warn "  review the replacement, then run: cd backend && uv run python scripts/release_artifacts.py"
+    return 1
+  fi
+  info "artifact manifest missing — pinning the initial local release …"
   if ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py ) >/dev/null 2>&1 \
      && ( cd "$BACKEND_DIR" && uv run python scripts/release_artifacts.py --check ) >/dev/null 2>&1; then
     ok "infra/artifacts.json re-pinned"
@@ -281,7 +294,7 @@ read_pid() { [ -f "$1" ] && cat "$1" 2>/dev/null || true; }
 
 port_pids() {
   if command -v lsof >/dev/null; then
-    lsof -ti "tcp:$1" 2>/dev/null || true
+    lsof -nP -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null || true
   elif command -v netstat >/dev/null; then
     netstat -ano 2>/dev/null | awk -v p=":$1" '$4 ~ p"$" && $6 == "LISTENING" { print $5 }' | sort -u
   fi
@@ -299,7 +312,7 @@ wait_for_http() { # url timeout_seconds
 }
 
 kill_pid_tree() { # pid ($! of a Git Bash subshell — MSYS pid on Windows)
-  if [ "$OS" = "Windows_NT" ]; then
+  if [ "${OS:-}" = "Windows_NT" ]; then
     # Git Bash ships neither pkill nor a POSIX process tree; taskkill //T
     # kills the Windows process tree, but it wants a Windows PID, so
     # translate the recorded MSYS PID via `ps -W`.
@@ -335,7 +348,7 @@ stop_service() { # name pid_file port
   local leftover; leftover="$(port_pids "$port")"
   if [ -n "$leftover" ]; then
     info "freeing port $port ($(echo "$leftover" | tr '\n' ' '))…"
-    if [ "$OS" = "Windows_NT" ]; then
+    if [ "${OS:-}" = "Windows_NT" ]; then
       for p in $leftover; do taskkill //PID "$p" //T //F >/dev/null 2>&1 || true; done
       sleep 1
     else
@@ -432,7 +445,7 @@ report_service() { # name base pid_file health_path
   fi
 
   local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "$base${health_path}" 2>/dev/null || echo 000)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "$base${health_path}" 2>/dev/null)" || code=000
 
   if [ "$running" = "yes" ] && [ "$code" != "000" ]; then
     ok "$name — up ($pidinfo) — HTTP $code $base${health_path}"
@@ -478,7 +491,7 @@ cmd_logs() {
 }
 
 cmd_benchmark() {
-  local source="" start_ms=0 end_ms=3000 time_scale=1 source_url=""
+  local source="" start_ms=0 end_ms=3000 time_scale="" source_url=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --start-ms)    start_ms="$2"; shift 2 ;;
@@ -491,7 +504,8 @@ cmd_benchmark() {
         echo "Builds data/raw_videos/curry/curry_v3_reference.mp4 + data/benchmarks/curry_v3.json"
         echo "from <source-video> and re-pins infra/artifacts.json (local only — do not commit)."
         echo "The [start,end] window must contain one full side-on jump shot with the shooter"
-        echo "fully visible. Default window is 0–3000 ms at real-time speed (--time-scale 1)."
+        echo "fully visible. Default window is 0–3000 ms with unknown playback speed."
+        echo "Use --time-scale 1 only after independently confirming real-time footage."
         return 0 ;;
       -*)  die "unknown option: $1 (see ./dev.sh benchmark --help)" ;;
       *)   [ -z "$source" ] && source="$1" || die "unexpected argument: $1"; shift ;;

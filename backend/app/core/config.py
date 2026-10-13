@@ -37,6 +37,10 @@ class Settings(BaseSettings):
         return self.data_dir / "compare"
 
     @property
+    def training_sessions_dir(self) -> Path:
+        return self.data_dir / "training" / "sessions"
+
+    @property
     def compare_players_dir(self) -> Path:
         return self.compare_dir / "players"
 

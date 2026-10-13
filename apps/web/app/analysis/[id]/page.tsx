@@ -7,6 +7,10 @@ import {
   type PhaseSegment,
 } from "@/lib/api";
 import SkeletonReplay from "./skeleton-replay";
+import SourceVideo from "@/app/components/reference-source-video";
+import ReferenceLibraryEntry from "@/app/components/reference-library-entry";
+import MediaSourceDetails from "@/app/components/media-source-details";
+import { recommendDrills } from "@/lib/drills";
 
 const METRIC_META: Record<string, { label: string; unit: string; decimals: number }> = {
   release_angle_deg: { label: "Release angle (forearm)", unit: "°", decimals: 0 },
@@ -40,7 +44,7 @@ function phaseDuration(phase: PhaseSegment | undefined): string {
 }
 
 function scoreColor(score: number | null): string {
-  if (score === null) return "text-zinc-400";
+  if (score === null) return "text-[var(--muted)]";
   if (score >= 80) return "text-emerald-500";
   if (score >= 60) return "text-amber-500";
   return "text-red-500";
@@ -48,11 +52,11 @@ function scoreColor(score: number | null): string {
 
 function Score({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="rounded-xl border border-black/[.08] px-5 py-4 text-center dark:border-white/[.145]">
+    <div className="rounded-xl border border-[var(--border)] px-5 py-4 text-center">
       <div className={`text-4xl font-bold tabular-nums ${scoreColor(value)}`}>
         {value === null ? "—" : value.toFixed(0)}
       </div>
-      <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-[var(--muted)]">{label}</div>
     </div>
   );
 }
@@ -65,7 +69,7 @@ export default async function AnalysisPage({
   const { id } = await params;
   const response = await getAnalysis(id);
   if (response.status === 404) notFound();
-  if (response.status === 410) return <div className="mx-auto max-w-xl space-y-4 px-6 py-12">
+  if (response.status === 410) return <div className="page-shell page-shell-narrow space-y-4">
     <h1 className="text-xl font-semibold">This analysis is no longer available</h1>
     <p>Its source data has expired. Upload a new shot to create another report.</p>
     <a href="/upload" className="underline">Upload a new shot</a>
@@ -75,15 +79,20 @@ export default async function AnalysisPage({
   const t0 = result.phases[0]?.start_ms ?? 0;
   const t1 = result.phases.at(-1)?.end_ms ?? 1;
   const total = Math.max(t1 - t0, 1);
+  const playerTimingReliable = !result.source || result.source.timing_mode === "realtime";
+  const suggestedDrills = recommendDrills(result);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-6 py-10">
+    <div className="page-shell flex flex-1 flex-col gap-10">
+      <header><p className="eyebrow">Analyze / Report</p><h1 className="page-title mt-2">Shot analysis</h1></header>
       <section className="flex flex-col gap-5">
-        <div className="rounded-xl bg-zinc-100 p-4 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+        <div className="rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-[var(--muted-strong)]">
           <p className="font-medium">{result.template_name ?? result.benchmark_version}</p>
           <p className="mt-1">
             {result.timing_reliable
-              ? "Form and timing use the selected real-time reference."
+              ? playerTimingReliable
+                ? "Form and timing use the selected real-time reference."
+                : "The reference is real time; timing comparison is unavailable because the source speed is unknown or slowed."
               : "Timing comparison is unavailable because reference playback speed is not verified as real time."}
             {" "}Reference measurements describe the selected footage, not a population confidence interval.
           </p>
@@ -94,7 +103,7 @@ export default async function AnalysisPage({
           <Score label="Timing" value={result.timing_score} />
         </div>
         {result.quality ? (
-          <div className="text-center text-sm text-zinc-500">
+          <div className="text-center text-sm text-[var(--muted)]">
             Evidence: {result.quality.valid_metrics}/{result.quality.expected_metrics} reliable metrics
             · {(result.quality.coverage * 100).toFixed(0)}% coverage · {result.quality.status}
           </div>
@@ -111,36 +120,52 @@ export default async function AnalysisPage({
               Capture view: {result.capture_quality.status} · side-view likelihood {Math.round(result.capture_quality.side_view_score * 100)}%
             </p>
             {result.capture_quality.guidance.map((item) => (
-              <p key={item} className="mt-1 text-zinc-600 dark:text-zinc-300">{item}</p>
+              <p key={item} className="mt-1 text-[var(--muted-strong)]">{item}</p>
             ))}
           </div>
         ) : null}
       </section>
 
+      <MediaSourceDetails source={result.source} />
+
       <SkeletonReplay analysisId={id} />
+      {result.template_source_video_url ? <SourceVideo path={result.template_source_video_url} timingReliable={result.timing_reliable} /> : null}
+
+      <ReferenceLibraryEntry analysisId={id} />
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Fix these first</h2>
         {result.feedback.length === 0 ? (
-          <p className="text-zinc-600 dark:text-zinc-400">
+          <p className="text-[var(--muted)]">
             No correction cleared the evidence threshold. Review the metric confidence below.
           </p>
         ) : (
           <ol className="flex flex-col gap-3">
             {result.feedback.map((item) => (
-              <li key={item.rank} className="rounded-xl border border-black/[.08] p-4 dark:border-white/[.145]">
-                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
+              <li key={item.rank} className="rounded-xl border border-[var(--border)] p-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[var(--muted)]">
                   <span>#{item.rank}</span>
                   {item.phase ? <span>· {item.phase.replace("_", " ")}</span> : null}
                   <span>· {(item.confidence * 100).toFixed(0)}% evidence</span>
                   {item.benchmark_sample_count ? <span>· Curry n={item.benchmark_sample_count}</span> : null}
                 </div>
                 <p className="mt-1 font-medium">{item.message}</p>
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Drill: {item.cue}</p>
+                <p className="mt-1 text-sm text-[var(--muted)]">Drill: {item.cue}</p>
               </li>
             ))}
           </ol>
         )}
+      </section>
+
+      <section className="surface p-6">
+        <p className="eyebrow">Take it back to the court</p>
+        <h2 className="mt-2 text-xl font-semibold">Your next workout</h2>
+        {suggestedDrills.length ? <>
+          <p className="mt-2 text-sm text-[var(--muted)]">These drills follow feedback that cleared the evidence threshold. Practice at a comfortable pace, then record another shot.</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">{suggestedDrills.map(drill => <Link key={drill.id} href={`/drills/${drill.id}`} className="rounded-xl border border-[var(--border)] p-4 hover:border-[var(--accent)]">
+            <h3 className="font-semibold">{drill.title}</h3><p className="mt-2 text-xs leading-5 text-[var(--muted)]">{drill.sets} sets × {drill.reps} shots · About {drill.minutes} min</p><span className="mt-4 inline-block text-sm text-[var(--accent)]">View drill →</span>
+          </Link>)}</div>
+        </> : <p className="mt-3 text-sm leading-6 text-[var(--muted)]">There is not enough reliable feedback to recommend a specific drill. Improve your camera setup, or choose a foundation drill from the <Link href="/drills" className="text-[var(--accent)] underline">training library</Link>.</p>}
       </section>
 
       <section>
@@ -162,9 +187,9 @@ export default async function AnalysisPage({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-black/[.08] text-left text-zinc-500 dark:border-white/[.145]">
+              <tr className="border-b border-[var(--border)] text-left text-[var(--muted)]">
                 <th className="py-2 font-medium">Phase</th>
-                <th className="py-2 font-medium">You</th>
+                <th className="py-2 font-medium">{playerTimingReliable ? "You" : "You (video time)"}</th>
                 <th className="py-2 font-medium">Curry</th>
                 <th className="py-2 font-medium">Status</th>
               </tr>
@@ -173,13 +198,14 @@ export default async function AnalysisPage({
               {result.phases.map((phase) => {
                 const curry = result.benchmark_phases?.find((item) => item.phase === phase.phase);
                 return (
-                  <tr key={phase.phase} className="border-b border-black/[.05] dark:border-white/[.08]">
+                  <tr key={phase.phase} className="border-b border-[var(--border)]">
                     <td className="py-2 capitalize">{phase.phase.replace("_", " ")}</td>
                     <td className="py-2 tabular-nums">{phaseDuration(phase)}</td>
                     <td className="py-2 tabular-nums">{phaseDuration(curry)}</td>
-                    <td className="py-2 text-xs text-zinc-500">
+                    <td className="py-2 text-xs text-[var(--muted)]">
                       {phase.censored ? "clip-ended" : phase.degraded ? "low confidence" : "tracked"}
                       {!result.timing_reliable ? " · reference only" : ""}
+                      {!playerTimingReliable ? " · source speed unknown or slowed" : ""}
                     </td>
                   </tr>
                 );
@@ -194,7 +220,7 @@ export default async function AnalysisPage({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
-              <tr className="border-b border-black/[.08] text-left text-zinc-500 dark:border-white/[.145]">
+              <tr className="border-b border-[var(--border)] text-left text-[var(--muted)]">
                 <th className="py-2 font-medium">Metric</th>
                 <th className="py-2 font-medium">You</th>
                 <th className="py-2 font-medium">Curry v3 reference</th>
@@ -204,10 +230,10 @@ export default async function AnalysisPage({
             </thead>
             <tbody>
               {result.metrics.map((metric) => (
-                <tr key={metric.name} className={`border-b border-black/[.05] dark:border-white/[.08] ${metric.reliable ? "" : "text-zinc-400"}`}>
+                <tr key={metric.name} className={`border-b border-[var(--border)] ${metric.reliable ? "" : "text-[var(--muted)]"}`}>
                   <td className="py-2">
                     {METRIC_META[metric.name]?.label ?? metric.name}
-                    <span className="ml-1 text-xs text-zinc-500">{metric.category}</span>
+                    <span className="ml-1 text-xs text-[var(--muted)]">{metric.category}</span>
                   </td>
                   <td className="py-2 tabular-nums">{fmt(metric, metric.value)}</td>
                   <td className="py-2 tabular-nums">
@@ -232,9 +258,9 @@ export default async function AnalysisPage({
         </div>
       </section>
 
-      <div className="flex justify-center gap-4">
-        <Link href="/record" className="h-12 rounded-full bg-foreground px-8 leading-[3rem] text-background">Shoot again</Link>
-        <Link href="/" className="h-12 rounded-full border border-black/[.08] px-8 leading-[3rem] dark:border-white/[.145]">Home</Link>
+      <div className="flex flex-wrap gap-3">
+        <Link href="/analyze" className="button-primary">Analyze another shot</Link>
+        <Link href="/" className="button-secondary">Dashboard</Link>
       </div>
     </div>
   );

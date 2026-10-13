@@ -71,12 +71,18 @@ npx playwright install chromium && npm test   # Playwright; ports 3109/8129
 npm run build                  # next build --webpack
 ```
 
+Browser tests require FFmpeg with libvpx on PATH (or `FFMPEG_PATH`). `npm test`
+generates synthetic `.webm` fixtures from source recipes before Playwright;
+those video outputs are ignored and are not shipped in the GitHub package.
+Package-boundary tests use `python3 -m unittest discover -s tests -v` at the
+repository root. See `docs/PACKAGING.md` for source-only and private exports.
+
 ### Full stack
 
 ```bash
 ./dev.sh deps                              # check/install toolchain (uv, node) + deps
 ./dev.sh start | status | stop | restart | logs   # run both servers (bare metal)
-./dev.sh media                             # verify local artifacts; rebuild/re-pin gaps
+./dev.sh media                             # verify local artifacts; initial setup only, refuse changed pins
 ./dev.sh benchmark <video> [--start-ms N --end-ms N]  # rebuild Curry v3 benchmark
 docker compose up --build                  # Nginx gateway → Next.js + FastAPI, :3000
 ```
@@ -201,6 +207,15 @@ cooperatively between frame calls, not a hard interrupt of native code.
 
 ### Frontend (`apps/web/`)
 
+Shooting practice lives in `/drills`, `/training`, and `/progress`.
+`lib/drills.ts` owns 12 original drills and three ordered workout plans.
+`lib/training-draft.ts` owns the browser draft and exact frozen save request;
+`POST /api/v1/training/sessions` stores immutable, UUID-idempotent manual
+outcomes under `data/training/sessions/`, outside media retention. The server
+derives all totals. History returns at most 100 records with an all-history
+summary. Empty accuracy remains null. Recommendations use only reliable
+metrics that already appear in evidence-gated feedback. See `docs/TRAINING.md`.
+
 App Router: `record/` (getUserMedia) and `upload/` both POST to
 `/api/v1/analysis`; `analysis/[id]/page.tsx` renders the compact report and
 `skeleton-replay.tsx` fetches the heavy keypoint/per-frame-metric sequences
@@ -271,8 +286,8 @@ single-frame controls. API error shapes: implemented routes use
   The gateway resolves `api`/`web` through Docker's embedded DNS, so
   recreated containers keep working without a gateway restart.
 - On Linux, create `data/analyses`, `data/uploads`, `data/keypoints`,
-  `data/.locks` and chown them to the API container's UID/GID 10001 before
-  starting Compose. `/ready` checks all four.
+  `data/.locks`, `data/training/sessions`, and `data/compare/{players,templates,clips,videos,comparisons,reports}` and chown them to the API container's UID/GID 10001 before
+  starting Compose. `/ready` checks all configured writable storage directories.
 - Upgrading an existing deployment: stop the previous Compose project at
   cutover before starting the new one on the same host port; keep the mounted
   data directories.

@@ -1,7 +1,7 @@
 /** Typed client for the frame-by-frame action comparison API. */
 
-import { API_BASE, responseError } from "./api";
-import type { ShotSequence } from "./api";
+import { API_BASE, responseError, serializeHomeCourtSource } from "./api";
+import type { HomeCourtSourceInput, MediaSource, ShotSequence } from "./api";
 
 export type Player = {
   player_id: string;
@@ -36,6 +36,7 @@ export type ClipMeta = {
   duration_ms: number;
   camera: CameraCheckResult | null;
   created_at: string;
+  source?: MediaSource | null;
 };
 
 export type AffineTransform = {
@@ -184,27 +185,30 @@ export function createTemplate(
 
 export function uploadClip(
   playerId: string,
-  input: { video: File; templateId: string; kind: ClipKind },
+  input: { video: File; templateId: string; kind: ClipKind; source?: HomeCourtSourceInput },
+  signal?: AbortSignal,
 ): Promise<Response> {
   const form = new FormData();
   form.append("video", input.video);
   form.append("template_id", input.templateId);
   form.append("kind", input.kind);
+  if (input.source) form.append("source", serializeHomeCourtSource(input.source));
   return fetch(`${API_BASE}/api/v1/compare/players/${playerId}/clips`, {
     method: "POST",
     body: form,
+    signal,
   });
 }
 
-export function getClip(clipId: string): Promise<ClipMeta> {
+export function getClip(clipId: string, signal?: AbortSignal): Promise<ClipMeta> {
   return parseJson<ClipMeta>(
-    fetch(`${API_BASE}/api/v1/compare/clips/${clipId}`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/v1/compare/clips/${clipId}`, { cache: "no-store", signal }),
   );
 }
 
-export function getClipPose(clipId: string): Promise<ShotSequence> {
+export function getClipPose(clipId: string, signal?: AbortSignal): Promise<ShotSequence> {
   return parseJson<ShotSequence>(
-    fetch(`${API_BASE}/api/v1/compare/clips/${clipId}/pose`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/v1/compare/clips/${clipId}/pose`, { cache: "no-store", signal }),
   );
 }
 
@@ -233,9 +237,9 @@ export function createComparison(input: {
   });
 }
 
-export function getComparison(comparisonId: string): Promise<ComparisonState> {
+export function getComparison(comparisonId: string, signal?: AbortSignal): Promise<ComparisonState> {
   return parseJson<ComparisonState>(
-    fetch(`${API_BASE}/api/v1/compare/comparisons/${comparisonId}`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/v1/compare/comparisons/${comparisonId}`, { cache: "no-store", signal }),
   );
 }
 
@@ -260,9 +264,9 @@ export function comparisonVideoUrl(comparisonId: string, side: "a" | "b"): strin
   return `${API_BASE}/api/v1/compare/comparisons/${comparisonId}/video/${side}`;
 }
 
-export function getComparisonMetrics(comparisonId: string): Promise<ComparisonMetrics> {
+export function getComparisonMetrics(comparisonId: string, signal?: AbortSignal): Promise<ComparisonMetrics> {
   return parseJson<ComparisonMetrics>(
-    fetch(`${API_BASE}/api/v1/compare/comparisons/${comparisonId}/metrics`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/v1/compare/comparisons/${comparisonId}/metrics`, { cache: "no-store", signal }),
   );
 }
 

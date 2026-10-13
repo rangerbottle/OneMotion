@@ -1,6 +1,7 @@
 """Regression cases from the repository review; no downloaded model required."""
 
 import io
+import hashlib
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -24,7 +25,21 @@ from test_biomechanics import sequence, phases
 
 @pytest.fixture
 def setup_analysis(tmp_path, monkeypatch):
-    cfg = Settings(data_dir=tmp_path)
+    cfg = Settings(data_dir=tmp_path / "data", model_path=tmp_path / "models/yolo11n-pose.pt",
+                   artifact_manifest=tmp_path / "infra/artifacts.json")
+    artifacts = {
+        "models/yolo11n-pose.pt": cfg.model_path,
+        "data/benchmarks/curry_v3.json": cfg.benchmark_path,
+        "data/raw_videos/curry/curry_v3_reference.mp4": cfg.raw_videos_dir / "curry_v3_reference.mp4",
+    }
+    for name, path in artifacts.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(name.encode())
+    cfg.artifact_manifest.parent.mkdir(parents=True)
+    cfg.artifact_manifest.write_text(json.dumps({"artifacts": [
+        {"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "size": path.stat().st_size}
+        for name, path in artifacts.items()
+    ]}))
     seq, segments = sequence(), phases()
     template = BenchmarkProfile(
         version="curry_v3", created_at=datetime.now(timezone.utc), source_clips=["fixture"],
@@ -228,7 +243,7 @@ def test_benchmark_omits_metrics_with_degraded_dependencies(monkeypatch):
 def test_readiness_checks_each_media_directory(setup_analysis, monkeypatch):
     from app.api import routes_health
     cfg, _, _, template = setup_analysis
-    monkeypatch.setattr(routes_health, "verify_manifest", lambda *_: [])
+    monkeypatch.setattr(routes_health, "verify_analysis_artifacts", lambda *_: [])
     monkeypatch.setattr(routes_health, "load_template", lambda *_: template)
     monkeypatch.setattr(routes_health, "template_video_path", lambda *_: cfg.model_path)
     cfg.uploads_dir.write_text("a file cannot be an upload directory")
@@ -244,3 +259,192 @@ def test_concurrent_legacy_reads_migrate_once(setup_analysis):
         loaded = list(pool.map(lambda _: routes.get_analysis(legacy.analysis_id, cfg), range(16)))
     assert all(item.capture_quality is not None for item in loaded)
     assert not list(cfg.analyses_dir.glob("*.tmp"))
+
+
+@pytest.mark.parametrize("damaged", ["manifest", "model", "benchmark", "video", "unpinned"])
+def test_analysis_integrity_gate_rejects_before_inference(setup_analysis, monkeypatch, damaged):
+    cfg, _, _, _ = setup_analysis
+    backend = Mock()
+    monkeypatch.setattr(routes, "get_backend", backend)
+    if damaged == "manifest":
+        cfg.artifact_manifest.unlink()
+    elif damaged == "unpinned":
+        release = json.loads(cfg.artifact_manifest.read_text())
+        release["artifacts"].pop()
+        cfg.artifact_manifest.write_text(json.dumps(release))
+    else:
+        path = {"model": cfg.model_path, "benchmark": cfg.benchmark_path,
+                "video": cfg.raw_videos_dir / "curry_v3_reference.mp4"}[damaged]
+        path.write_bytes(b"tampered")
+    request = upload()
+    with pytest.raises(HTTPException) as exc:
+        routes.create_analysis(request, cfg)
+    assert exc.value.status_code == 503
+    assert request.file.closed
+    backend.assert_not_called()
+    assert not list(cfg.uploads_dir.glob("*"))
+
+
+@pytest.mark.parametrize("status", ["fail", "warn"])
+def test_capture_gates_new_repeated_and_persisted_reports(setup_analysis, monkeypatch, status):
+    cfg, _, _, _ = setup_analysis
+    capture = CaptureQuality(status=status, side_view_score=.65 if status == "warn" else .2,
+                             confidence=.95, body_visibility=1, reasons=["unsuitable view"])
+    monkeypatch.setattr(routes, "assess_capture", lambda *_: capture)
+    created = routes.create_analysis(upload(), cfg)
+    assert created.similarity_score is None  # fewer than three usable metrics
+    assert created.form_score is None
+    assert created.feedback == []
+    assert any(item["reliable"] for item in created.measurement_evidence.values())
+    for result in (created, routes.get_analysis(created.analysis_id, cfg),
+                   routes.compare_with_template(created.analysis_id, cfg)):
+        assert all(not m.reliable and m.delta is None for m in result.metrics if m.category == "form")
+        assert result.measurement_evidence == created.measurement_evidence
+        if status == "fail":
+            assert result.timing_score is None
+    # Legacy reports with old scores must obey the new policy, even after media expires.
+    old = created.model_copy(update={"similarity_score": 100, "form_score": 100,
+        "media_expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)})
+    atomic_write(cfg.analyses_dir / f"{old.analysis_id}.json", old.model_dump_json())
+    loaded = routes.get_analysis(old.analysis_id, cfg)
+    assert loaded.similarity_score is None and loaded.form_score is None
+    assert routes.get_analysis(old.analysis_id, cfg) == loaded
+
+
+def test_frontal_capture_is_a_failure():
+    from app.analysis.capture_quality import assess_capture
+    seq = sequence()
+    for frame in seq.frames:
+        for kp in frame.keypoints:
+            if kp.name in {"left_shoulder", "left_hip"}:
+                kp.x = .2
+            elif kp.name in {"right_shoulder", "right_hip"}:
+                kp.x = .8
+    assert assess_capture(seq, phases()).status == "fail"
+
+
+def test_full_source_is_optional_and_must_match_provenance(setup_analysis):
+    from app.api.routes_templates import template_source_video
+    from app.benchmarks.templates import template_source_video_path
+    cfg, _, _, profile = setup_analysis
+    source = cfg.raw_videos_dir / "curry_v3_source.mp4"
+    source.write_bytes(b"full original")
+    profile.canonical_video_filename = "curry_v3_reference.mp4"
+    profile.provenance = {"clips": [{"path": "curry_v3_reference.mp4",
+        "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}]}
+    assert template_source_video_path(cfg, profile) == source
+    source.write_bytes(b"different original")
+    assert template_source_video_path(cfg, profile) is None
+    source.unlink()
+    assert template_source_video_path(cfg, profile) is None
+    with pytest.raises(HTTPException) as exc:
+        template_source_video("retired", cfg)
+    assert exc.value.status_code == 410
+
+
+def test_persisted_unknown_timing_does_not_claim_slow_motion(setup_analysis):
+    cfg, _, _, profile = setup_analysis
+    profile.timing_mode = "unknown"
+    profile.timing_reliable = False
+    created = routes.create_analysis(upload(), cfg)
+    for metric in created.metrics:
+        if metric.category == "timing":
+            metric.unavailable_reason = "selected template is slow-motion; timing comparison is disabled"
+    atomic_write(cfg.analyses_dir / f"{created.analysis_id}.json", created.model_dump_json())
+    loaded = routes.get_analysis(created.analysis_id, cfg)
+    assert all("not verified" in metric.unavailable_reason for metric in loaded.metrics if metric.category == "timing")
+    assert loaded.metrics == routes.compare_with_template(created.analysis_id, cfg).metrics
+
+
+@pytest.mark.parametrize("expired", [False, True])
+def test_no_capture_or_replay_cannot_bypass_persisted_timing_gate(setup_analysis, monkeypatch, expired):
+    cfg, seq, _, _ = setup_analysis
+    created = routes.create_analysis(upload(), cfg)
+    deadline = datetime.now(timezone.utc) + timedelta(hours=-1 if expired else 1)
+    old = created.model_copy(update={
+        "capture_quality": None, "timing_mode": "unknown", "timing_reliable": False,
+        "timing_score": 100, "similarity_score": 100, "player_sequence": seq if expired else None,
+        "media_expires_at": deadline,
+    })
+    atomic_write(cfg.analyses_dir / f"{old.analysis_id}.json", old.model_dump_json())
+    (cfg.keypoints_dir / f"{old.analysis_id}.json").unlink()
+    assess = Mock(side_effect=AssertionError("replay is unavailable"))
+    monkeypatch.setattr(routes, "assess_capture", assess)
+    writer = Mock(wraps=routes._atomic_write)
+    monkeypatch.setattr(routes, "_atomic_write", writer)
+    loaded = routes.get_analysis(old.analysis_id, cfg)
+    tempo = next(metric for metric in loaded.metrics if metric.category == "timing")
+    assert not tempo.reliable and tempo.delta is None
+    assert "not verified" in tempo.unavailable_reason
+    assert loaded.timing_score is None and loaded.similarity_score is None
+    assert loaded.player_sequence is None
+    assert loaded.media_expires_at == deadline
+    assert loaded.measurement_evidence == created.measurement_evidence
+    assert routes.get_analysis(old.analysis_id, cfg) == loaded
+    assert writer.call_count == 1
+    assess.assert_not_called()
+
+
+def test_repeated_comparison_keeps_unreliable_metric_missing_from_partial_evidence(setup_analysis):
+    cfg, _, _, _ = setup_analysis
+    created = routes.create_analysis(upload(), cfg)
+    evidence = {name: item for name, item in created.measurement_evidence.items() if name != "set_point_ratio"}
+    metrics = [metric.model_copy(update={
+        "reliable": False, "delta": None, "delta_pct": None, "robust_z_score": None,
+        "unavailable_reason": "original evidence rejected this measurement",
+    }) if metric.name == "set_point_ratio" else metric for metric in created.metrics]
+    old = created.model_copy(update={"metrics": metrics, "measurement_evidence": evidence})
+    atomic_write(cfg.analyses_dir / f"{old.analysis_id}.json", old.model_dump_json())
+    loaded = routes.get_analysis(old.analysis_id, cfg)
+    repeated = routes.compare_with_template(old.analysis_id, cfg)
+    assert repeated.metrics == loaded.metrics
+    assert repeated.feedback == loaded.feedback
+    assert repeated.similarity_score == loaded.similarity_score
+    assert repeated.measurement_evidence["set_point_ratio"]["reliable"] is False
+
+
+@pytest.mark.parametrize("raw_evidence", [True, False])
+def test_retired_report_migration_does_not_upgrade_rejected_measurements(setup_analysis, raw_evidence):
+    cfg, _, _, _ = setup_analysis
+    created = routes.create_analysis(upload(), cfg)
+    rejected = {"confidence": .6, "coverage": .5, "reliable": False,
+                "reason": "the original recording had missing joints"}
+    metrics = [metric.model_copy(update={
+        "reliable": False, "confidence": .6, "coverage": .5, "delta": None,
+        "unavailable_reason": rejected["reason"],
+    }) if metric.name == "set_point_ratio" else metric for metric in created.metrics]
+    evidence = {"set_point_ratio": rejected} if raw_evidence else {}
+    old = created.model_copy(update={
+        "benchmark_version": "curry_v2", "template_id": "curry_v2",
+        "metrics": metrics, "measurement_evidence": evidence,
+    })
+    atomic_write(cfg.analyses_dir / f"{old.analysis_id}.json", old.model_dump_json())
+    migrated = routes.get_analysis(old.analysis_id, cfg)
+    set_point = next(metric for metric in migrated.metrics if metric.name == "set_point_ratio")
+    assert migrated.template_id == "curry_v3"
+    assert not set_point.reliable and set_point.delta is None
+    assert set_point.unavailable_reason == rejected["reason"]
+    assert migrated.measurement_evidence["set_point_ratio"] == rejected
+    assert "release_angle_deg" in migrated.measurement_evidence  # Missing raw entries were measured.
+    assert migrated.media_expires_at == created.media_expires_at
+    assert routes.get_analysis(old.analysis_id, cfg) == migrated
+    assert routes.compare_with_template(old.analysis_id, cfg).metrics == migrated.metrics
+
+
+def test_read_does_not_trust_stale_metric_over_raw_rejection(setup_analysis):
+    cfg, _, _, _ = setup_analysis
+    created = routes.create_analysis(upload(), cfg)
+    evidence = {**created.measurement_evidence, "set_point_ratio": {
+        **created.measurement_evidence["set_point_ratio"], "reliable": False,
+        "reason": "the original evidence rejected this measurement",
+    }}
+    old = created.model_copy(update={"measurement_evidence": evidence})
+    atomic_write(cfg.analyses_dir / f"{old.analysis_id}.json", old.model_dump_json())
+    loaded = routes.get_analysis(old.analysis_id, cfg)
+    set_point = next(metric for metric in loaded.metrics if metric.name == "set_point_ratio")
+    assert not set_point.reliable and set_point.delta is None
+    repeated = routes.compare_with_template(old.analysis_id, cfg)
+    assert repeated.metrics == loaded.metrics
+    assert repeated.similarity_score == loaded.similarity_score
+    assert repeated.feedback == loaded.feedback
+    assert loaded.measurement_evidence == evidence

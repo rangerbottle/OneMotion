@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { EventMarker, PhaseBoundary } from "@/lib/compare-api";
+import type { PoseFrame } from "@/lib/api";
+import { frameTimeMs, nearestFrameIndex } from "@/lib/frame-time";
 
 const PHASE_COLORS = ["bg-sky-500", "bg-amber-500", "bg-emerald-500", "bg-rose-500", "bg-violet-500", "bg-cyan-500"];
 
@@ -17,6 +19,8 @@ export default function Timeline({
   clipDurationB,
   fpsA,
   fpsB,
+  framesA,
+  framesB,
   phasesA,
   phasesB,
   markers,
@@ -32,6 +36,8 @@ export default function Timeline({
   clipDurationB: number;
   fpsA: number;
   fpsB: number;
+  framesA: PoseFrame[];
+  framesB: PoseFrame[];
   phasesA: PhaseBoundary[];
   phasesB: PhaseBoundary[];
   markers: EventMarker[];
@@ -69,15 +75,18 @@ export default function Timeline({
     const clipMs = ratio * durationMs + (drag.side === "a" ? offsetMsA : offsetMsB);
     const fps = drag.side === "a" ? fpsA : fpsB;
     const source = drag.side === "a" ? phasesA : phasesB;
-    const frameCount = Math.max(Math.round((drag.side === "a" ? clipDurationA : clipDurationB) / 1000 * fps), 1);
+    const frames = drag.side === "a" ? framesA : framesB;
+    const frameCount = frames.length ? frames[frames.length - 1].frame_idx + 1 : Math.max(Math.round((drag.side === "a" ? clipDurationA : clipDurationB) / 1000 * fps), 1);
     // Clamp inside the neighbouring phases so the PATCH can never be
     // rejected for an inverted or out-of-range boundary.
     const lower = source[drag.index]?.start_frame ?? 0;
     const upper = Math.min(
-      source[drag.index + 1]?.end_frame ?? frameCount - 1,
-      frameCount - 1,
+      (source[drag.index + 1]?.end_frame ?? frameCount - 1) - 1,
+      frameCount - 2,
     );
-    const frame = Math.min(Math.max(Math.round((clipMs / 1000) * fps), lower), upper);
+    // The handle denotes the next phase's first frame, not the previous
+    // phase's inclusive last frame. Keep a non-empty phase on either side.
+    const frame = Math.min(Math.max(nearestFrameIndex(frames, clipMs, fps) - 1, lower), Math.max(lower, upper));
     setDrag({ ...drag, frame });
   };
 
@@ -94,12 +103,13 @@ export default function Timeline({
     setDrag(null);
   };
 
-  const renderTrack = (side: "a" | "b", phases: PhaseBoundary[], offset: number, clipDuration: number, fps: number) => (
+  const renderTrack = (side: "a" | "b", phases: PhaseBoundary[], clipDuration: number, fps: number, frames: PoseFrame[]) => (
     <div className="flex items-center gap-2">
       <span className={`w-6 text-xs font-semibold ${side === "a" ? "text-blue-500" : "text-orange-500"}`}>{side.toUpperCase()}</span>
       <div
         ref={side === "a" ? trackA : undefined}
-        className="relative h-8 flex-1 cursor-pointer overflow-hidden rounded-md bg-zinc-200 dark:bg-zinc-800"
+        className="relative h-8 flex-1 cursor-pointer overflow-hidden rounded-md bg-[var(--surface-muted)]"
+        aria-label={`${side.toUpperCase()} phase timeline`}
         onPointerDown={(e) => seekFromPointer(e.clientX)}
       >
         {/* visible window: where this clip has frames, relative to aligned time */}
@@ -111,8 +121,10 @@ export default function Timeline({
           }}
         />
         {phases.map((phase, i) => {
-          const startMs = (phase.start_frame / fps) * 1000;
-          const endMs = ((phase.end_frame + 1) / fps) * 1000;
+          const startFrame = drag?.side === side && drag.index + 1 === i ? drag.frame + 1 : phase.start_frame;
+          const endFrame = drag?.side === side && drag.index === i ? drag.frame : phase.end_frame;
+          const startMs = frameTimeMs(frames, startFrame, fps, clipDuration);
+          const endMs = frameTimeMs(frames, endFrame + 1, fps, clipDuration);
           return (
             <div
               key={phase.phase}
@@ -121,7 +133,7 @@ export default function Timeline({
                 left: `${(toAligned(side, startMs) / durationMs) * 100}%`,
                 width: `${Math.max(((endMs - startMs) / durationMs) * 100, 0.4)}%`,
               }}
-              title={`${phase.phase}: 帧 ${phase.start_frame}–${phase.end_frame}`}
+              title={`${phase.phase}: frames ${phase.start_frame}–${phase.end_frame}`}
             />
           );
         })}
@@ -133,9 +145,9 @@ export default function Timeline({
             return (
               <button
                 key={`${side}-${marker.marker_id}`}
-                className="absolute -top-0.5 h-9 w-3 -translate-x-1/5 text-zinc-700 dark:text-zinc-200"
+                className="absolute -top-0.5 h-9 w-3 -translate-x-1/5 text-[var(--foreground)]"
                 style={{ left: `${(aligned / durationMs) * 100}%` }}
-                title={`${marker.text || "标记"}（点击定位，双击删除）`}
+                title={`${marker.text || "Marker"} (click to seek, double-click to delete)`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -151,11 +163,13 @@ export default function Timeline({
         {phases.slice(0, -1).map((phase, i) => (
           <div
             key={`handle-${phase.phase}`}
+            aria-label={`${side.toUpperCase()} ${phase.phase} phase boundary`}
             className="absolute inset-y-0 w-2 cursor-ew-resize touch-none"
-            style={{ left: `calc(${(toAligned(side, ((drag?.side === side && drag.index === i ? drag.frame : phase.end_frame) / fps) * 1000) / durationMs) * 100}% - 4px)` }}
+            style={{ left: `calc(${(toAligned(side, frameTimeMs(frames, (drag?.side === side && drag.index === i ? drag.frame : phase.end_frame) + 1, fps, clipDuration)) / durationMs) * 100}% - 4px)` }}
             onPointerDown={(e) => startBoundaryDrag(side, i, e)}
             onPointerMove={moveBoundaryDrag}
             onPointerUp={endBoundaryDrag}
+            onPointerCancel={() => setDrag(null)}
           />
         ))}
       </div>
@@ -166,8 +180,8 @@ export default function Timeline({
 
   return (
     <div className="relative space-y-1.5">
-      {renderTrack("a", phasesA, offsetMsA, clipDurationA, fpsA)}
-      {renderTrack("b", phasesB, offsetMsB, clipDurationB, fpsB)}
+      {renderTrack("a", phasesA, clipDurationA, fpsA, framesA)}
+      {renderTrack("b", phasesB, clipDurationB, fpsB, framesB)}
       <div
         className="pointer-events-none absolute bottom-0 top-0 w-px bg-red-500"
         style={{ left: `calc(1.5rem + 8px + (100% - 1.5rem - 8px) * ${playhead / 100})` }}

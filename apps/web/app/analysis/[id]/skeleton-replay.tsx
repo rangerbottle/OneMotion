@@ -84,7 +84,7 @@ function drawLabel(
   color: string,
 ) {
   context.save();
-  context.font = `600 ${Math.max(14, context.canvas.width / 44)}px system-ui`;
+  context.font = `600 ${Math.max(14, context.canvas.width / 44)}px ${getComputedStyle(context.canvas).fontFamily}`;
   const width = context.measureText(text).width + 12;
   const height = Math.max(23, context.canvas.width / 26);
   context.fillStyle = "rgba(9, 9, 11, .78)";
@@ -635,7 +635,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   }, [seekSide, sideData, times]);
 
   if (!replay) {
-    return <div role="status" className="space-y-3 text-sm text-zinc-500">
+    return <div role="status" className="space-y-3 text-sm text-[var(--muted)]">
       <p>{error ?? "Loading video replay…"}</p>
       {error && !expired ? <button className="rounded-full border px-4 py-2" onClick={retryReplay}>Retry replay</button> : null}
       {error ? <a href="/upload" className="ml-3 underline">Upload a new shot</a> : null}
@@ -664,15 +664,15 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
   ) => {
     const biomechanics = currentBiomechanics[side];
     return (
-      <figure className="min-w-0 rounded-2xl border border-black/[.08] p-3 dark:border-white/[.145]">
+      <figure className="min-w-0 rounded-2xl border border-[var(--border)] p-3">
         <figcaption className="mb-2 flex items-center justify-between text-sm">
           <span className={`font-semibold ${colorClass}`}>{title}</span>
-          <span className="font-mono text-xs text-zinc-500">
+          <span className="tabular-nums text-xs text-[var(--muted)]">
             frame {biomechanics?.frame_idx ?? "—"} · {(times[side] / 1000).toFixed(3)}s
           </span>
         </figcaption>
         <div
-          className="relative overflow-hidden rounded-xl bg-zinc-950"
+          className="relative overflow-hidden rounded-xl bg-black"
           style={{ aspectRatio: `${sequence.width} / ${sequence.height}` }}
         >
           {videoUrl ? (
@@ -742,19 +742,19 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
                 key={phase}
                 disabled={mode === "realtime_locked" || !match}
                 onClick={() => match && seekSide(side, match.anchor_ms ?? match.start_ms)}
-                className="rounded-full bg-zinc-100 px-2 py-1 text-[11px] capitalize text-zinc-600 disabled:opacity-35 dark:bg-zinc-800 dark:text-zinc-300"
+                className="rounded-full bg-[var(--surface-muted)] px-2 py-1 text-[11px] capitalize text-[var(--muted-strong)] disabled:opacity-35"
               >{phase.replace("_", " ")}</button>
             );
           })}
         </div>
 
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-zinc-100 p-3 text-xs dark:bg-zinc-900">
-          <div className="flex justify-between gap-2"><dt>Elbow</dt><dd className="font-mono">{metricText(biomechanics?.elbow_flexion_deg ?? EMPTY_DERIVED)}</dd></div>
-          <div className="flex justify-between gap-2"><dt>Forearm</dt><dd className="font-mono">{metricText(biomechanics?.forearm_elevation_deg ?? EMPTY_DERIVED)}</dd></div>
-          <div className="flex justify-between gap-2"><dt>Left knee</dt><dd className="font-mono">{metricText(biomechanics?.left_knee_flexion_deg ?? EMPTY_DERIVED)}</dd></div>
-          <div className="flex justify-between gap-2"><dt>Right knee</dt><dd className="font-mono">{metricText(biomechanics?.right_knee_flexion_deg ?? EMPTY_DERIVED)}</dd></div>
-          <div className="flex justify-between gap-2"><dt>Trunk lean</dt><dd className="font-mono">{metricText(biomechanics?.trunk_lean_deg ?? EMPTY_DERIVED)}</dd></div>
-          <div className="flex justify-between gap-2"><dt>Wrist speed</dt><dd className="font-mono">{metricText(biomechanics?.wrist_vertical_velocity_height_s ?? EMPTY_DERIVED, "×/s")}</dd></div>
+        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-[var(--surface-muted)] p-3 text-xs">
+          <div className="flex justify-between gap-2"><dt>Elbow</dt><dd className="tabular-nums">{metricText(biomechanics?.elbow_flexion_deg ?? EMPTY_DERIVED)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Forearm</dt><dd className="tabular-nums">{metricText(biomechanics?.forearm_elevation_deg ?? EMPTY_DERIVED)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Left knee</dt><dd className="tabular-nums">{metricText(biomechanics?.left_knee_flexion_deg ?? EMPTY_DERIVED)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Right knee</dt><dd className="tabular-nums">{metricText(biomechanics?.right_knee_flexion_deg ?? EMPTY_DERIVED)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Trunk lean</dt><dd className="tabular-nums">{metricText(biomechanics?.trunk_lean_deg ?? EMPTY_DERIVED)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Wrist speed</dt><dd className="tabular-nums">{metricText(biomechanics?.wrist_vertical_velocity_height_s ?? EMPTY_DERIVED, "×/s")}</dd></div>
         </dl>
       </figure>
     );
@@ -767,10 +767,10 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
 
   return (
     <section>
-      <div className="mb-3 flex flex-col gap-3 rounded-2xl bg-zinc-100 p-4 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-3 flex flex-col gap-3 rounded-2xl bg-[var(--surface-muted)] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Video + biomechanics replay</h2>
-          <p className="text-sm text-zinc-500">Real video frames remain the timing source. Generated views are never used for scoring.</p>
+          <p className="text-sm text-[var(--muted)]">Real video frames remain the timing source. Generated views are never used for scoring.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-2">
@@ -814,7 +814,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
         <p className="mb-3 text-sm text-amber-600">Sync confidence warning: {replay.sync.unavailable_reason}</p>
       ) : null}
       {ballUnavailableReason ? (
-        <p className="mb-3 text-xs text-zinc-500">Ball trajectory unavailable: {ballUnavailableReason}</p>
+        <p className="mb-3 text-xs text-[var(--muted)]">Ball trajectory unavailable: {ballUnavailableReason}</p>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -823,7 +823,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
       </div>
 
       {mode === "realtime_locked" ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-black/[.08] p-3 dark:border-white/[.145]">
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--border)] p-3">
           <button
             type="button"
             onClick={() => void playBoth()}
@@ -839,7 +839,7 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
                 setAnchor(nextAnchor);
                 alignToAnchor(nextAnchor);
               }}
-              className="h-9 rounded-lg border border-black/[.12] bg-background px-2 dark:border-white/[.2]"
+              className="h-9 rounded-lg border border-[var(--border)] bg-background px-2"
             >
               <option value="release">Release</option>
               <option value="dip">Dip</option>
@@ -856,12 +856,12 @@ export default function SkeletonReplay({ analysisId }: { analysisId: string }) {
             className="min-w-[180px] flex-1 accent-foreground"
             aria-label="Synchronized replay position"
           />
-          <span className="w-20 text-right font-mono text-xs text-zinc-500">
+          <span className="w-20 text-right tabular-nums text-xs text-[var(--muted)]">
             {syncOffset >= 0 ? "+" : ""}{(syncOffset / 1000).toFixed(3)}s
           </span>
         </div>
       ) : (
-        <p className="mt-3 text-sm text-zinc-500">Independent mode: hold either clip on an exact frame while playing or scrubbing the other.</p>
+        <p className="mt-3 text-sm text-[var(--muted)]">Independent mode: hold either clip on an exact frame while playing or scrubbing the other.</p>
       )}
     </section>
   );

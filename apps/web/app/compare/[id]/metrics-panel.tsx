@@ -7,16 +7,16 @@ const COLOR_A = "#3b82f6";
 const COLOR_B = "#f97316";
 
 const TABS = [
-  { id: "angles", label: "关节角度", ready: true },
-  { id: "velocity", label: "速度", ready: false },
-  { id: "displacement", label: "位移", ready: false },
+  { id: "angles", label: "Joint angles", ready: true },
+  { id: "velocity", label: "Velocity", ready: false },
+  { id: "displacement", label: "Displacement", ready: false },
 ] as const;
 
 const ANGLE_LABELS: Record<string, string> = {
-  left_elbow_deg: "左肘",
-  right_elbow_deg: "右肘",
-  left_knee_deg: "左膝",
-  right_knee_deg: "右膝",
+  left_elbow_deg: "Left elbow",
+  right_elbow_deg: "Right elbow",
+  left_knee_deg: "Left knee",
+  right_knee_deg: "Right knee",
 };
 
 const PAD = { left: 40, right: 12, top: 10, bottom: 22 };
@@ -46,14 +46,17 @@ export default function MetricsPanel({
     if (!el || tab !== "angles") return;
     const ctx = el.getContext("2d");
     if (!ctx) return;
+    const style = getComputedStyle(el);
+    const muted = style.getPropertyValue("--muted").trim();
+    const border = style.getPropertyValue("--border").trim();
     const { width, height } = el;
     ctx.clearRect(0, 0, width, height);
     const seriesA = metrics.a[seriesKey] ?? [];
     const seriesB = metrics.b[seriesKey] ?? [];
     if (!seriesA.length && !seriesB.length) {
-      ctx.fillStyle = "#71717a";
-      ctx.font = "13px system-ui";
-      ctx.fillText("该曲线暂无数据", 12, 24);
+      ctx.fillStyle = muted;
+      ctx.font = `13px ${style.fontFamily}`;
+      ctx.fillText("No data for this series", 12, 24);
       return;
     }
     const values = [...seriesA, ...seriesB].map((p) => p.value).filter((v): v is number => v !== null);
@@ -65,10 +68,10 @@ export default function MetricsPanel({
       pad.left + ((tMs - offset) / durationMs) * (width - pad.left - pad.right);
     const y = (v: number) => pad.top + (1 - (v - yMin) / (yMax - yMin)) * (height - pad.top - pad.bottom);
 
-    ctx.strokeStyle = "rgba(120,120,130,.35)";
+    ctx.strokeStyle = border;
     ctx.lineWidth = 1;
-    ctx.fillStyle = "#71717a";
-    ctx.font = "10px system-ui";
+    ctx.fillStyle = muted;
+    ctx.font = `10px ${style.fontFamily}`;
     for (let i = 0; i <= 4; i += 1) {
       const v = yMin + ((yMax - yMin) * i) / 4;
       const yy = y(v);
@@ -141,7 +144,7 @@ export default function MetricsPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-black/[.08] p-3 dark:border-white/[.145]">
+    <div className="rounded-2xl border border-[var(--border)] p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
         {TABS.map((item) => (
           <button
@@ -149,15 +152,15 @@ export default function MetricsPanel({
             type="button"
             disabled={!item.ready}
             onClick={() => setTab(item.id)}
-            className={`rounded-full px-3 py-1 ${tab === item.id ? "bg-foreground text-background" : "bg-zinc-100 dark:bg-zinc-800"} disabled:opacity-40`}
-          >{item.label}{item.ready ? "" : "（即将上线）"}</button>
+            className={`rounded-full px-3 py-1 ${tab === item.id ? "bg-[var(--accent)] text-[var(--surface)]" : "bg-[var(--surface-muted)]"} disabled:opacity-40`}
+          >{item.label}{item.ready ? "" : " (coming soon)"}</button>
         ))}
         {tab === "angles" ? (
           <select
             value={seriesKey}
             onChange={(e) => setSeriesKey(e.target.value)}
-            className="ml-auto h-8 rounded-lg border border-black/[.12] bg-transparent px-2 text-sm dark:border-white/[.2]"
-            aria-label="关节选择"
+            className="ml-auto h-8 rounded-lg border border-[var(--border)] bg-transparent px-2 text-sm"
+            aria-label="Joint selection"
           >
             {Object.keys(ANGLE_LABELS).map((key) => (
               <option key={key} value={key}>{ANGLE_LABELS[key]}</option>
@@ -176,12 +179,12 @@ export default function MetricsPanel({
           onClick={onClick}
         />
       ) : (
-        <p className="py-8 text-center text-sm text-zinc-500">速度 / 位移分析即将上线</p>
+        <p className="py-8 text-center text-sm text-[var(--muted)]">Velocity and displacement analysis are coming soon.</p>
       )}
-      <p className="mt-1 flex gap-4 text-xs text-zinc-500">
-        <span className="text-blue-500">— A · 基准</span>
-        <span className="text-orange-500">— B · 对比</span>
-        <span className="ml-auto">点击图表可定位到对应帧</span>
+      <p className="mt-1 flex gap-4 text-xs text-[var(--muted)]">
+        <span className="text-blue-500">— A · Baseline</span>
+        <span className="text-orange-500">— B · Comparison</span>
+        <span className="ml-auto">Click the chart to seek to a frame</span>
       </p>
     </div>
   );

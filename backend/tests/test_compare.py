@@ -66,7 +66,7 @@ def test_clip_requires_known_template_and_valid_kind(cfg):
     assert exc.value.status_code == 422
 
 
-def test_comparison_create_patch_and_report(cfg):
+def test_comparison_create_patch_and_report(cfg, monkeypatch):
     player = make_player(cfg)
     template = make_template(cfg, player.player_id)
     clip_a = make_clip(cfg, player.player_id, template.template_id, kind="baseline")
@@ -83,10 +83,10 @@ def test_comparison_create_patch_and_report(cfg):
     # Camera check paths with controlled pairs (unit-level trust: algorithms
     # have their own tests); here verify PATCH validation only.
     patched = routes.patch_comparison(state.comparison_id, {
-        "temporal": {"offset_ms_b": 400},
+        "temporal": {"offset_ms_b": 100},
         "markers": [{"marker_id": "m1", "side": "both", "frame": 1, "t_ms": 100, "text": "wrist late"}],
     }, cfg)
-    assert patched.temporal.offset_ms_b == 400
+    assert patched.temporal.offset_ms_b == 100
     assert patched.markers[0].text == "wrist late"
     assert patched.report is None
 
@@ -104,8 +104,10 @@ def test_comparison_create_patch_and_report(cfg):
     assert set(metrics["a"].keys()) == {"left_elbow_deg", "right_elbow_deg", "left_knee_deg", "right_knee_deg"}
     assert len(metrics["a"]["left_elbow_deg"]) == 3
 
-    # Report generation runs without a model; keyframes need decodable video,
-    # so the fixture yields zero files but a complete summary.
+    # A clip with no eligible pose pairs can still export a phase summary.
+    # These fake video bytes are never used for screenshot decoding.
+    from app.compare import report
+    monkeypatch.setattr(report, "aligned_deviation", lambda *_: [])
     reported = routes.generate_report(state.comparison_id, cfg)
     assert reported.report is not None
     assert "Camera check: mismatch" in reported.report.summary_text
@@ -157,11 +159,28 @@ def test_report_file_serving_and_traversal_guard(cfg):
          "baseline_clip_id": clip_a.clip_id, "comparison_clip_id": clip_b.clip_id}, cfg)
     (cfg.compare_reports_dir / state.comparison_id).mkdir(parents=True)
     (cfg.compare_reports_dir / state.comparison_id / "kf_0.png").write_bytes(b"png")
+    from datetime import datetime, timezone
+    from app.compare import store
+    from app.schemas.compare import ReportRef, KeyframeRef
+    state.report = ReportRef(created_at=datetime.now(timezone.utc), summary_text="fixture", phase_offsets=[],
+                            keyframes=[KeyframeRef(url=f"/api/v1/compare/reports/{state.comparison_id}/kf_0.png",
+                                                   t_ms_a=0, t_ms_b=0, deviation=0)])
+    store.save_comparison(cfg, state)
     response = routes.report_file(state.comparison_id, "kf_0.png", cfg)
     assert response.filename == "kf_0.png"
     with pytest.raises(HTTPException) as exc:
         routes.report_file(state.comparison_id, "../secret.png", cfg)
     assert exc.value.status_code == 404
+    # Editing the alignment invalidates both metadata and direct screenshot URLs.
+    for body in ({"spatial": {"tx": 10}}, {"temporal": {"offset_ms_b": 10}},
+                 {"phases_a": [{"phase": "prep", "start_frame": 0, "end_frame": 1}]}):
+        store.save_comparison(cfg, state)
+        assert routes.patch_comparison(state.comparison_id, body, cfg).report is None
+        with pytest.raises(HTTPException) as exc:
+            routes.report_file(state.comparison_id, "kf_0.png", cfg)
+        assert exc.value.status_code == 410
+    store.save_comparison(cfg, state)
+    assert routes.patch_comparison(state.comparison_id, {"opacity_default": .8}, cfg).report is not None
 
 
 def test_clip_delete_is_rejected_while_referenced(cfg):

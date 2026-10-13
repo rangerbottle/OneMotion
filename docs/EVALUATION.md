@@ -39,6 +39,10 @@ pose inference and must not be reported as end-to-end model performance.
 ```
 
 The numbers above illustrate the format; they are not labels for actual footage.
+Each case must contain at least one nonempty phase, metric, or unreliability label,
+or an explicit feedback label (including `null` for no cue). Unannotated cases
+are rejected rather than counted as passing.
+
 Paths resolve relative to the manifest. `benchmark` is optional unless feedback
 is labeled. `label_source` is required and is `human`, `synthetic` or `baseline`.
 Only include expected values that were actually annotated. Sequence checksums

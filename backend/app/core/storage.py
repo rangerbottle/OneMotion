@@ -44,16 +44,16 @@ else:
         fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def atomic_write(path: Path, content: str) -> None:
+def atomic_write(path: Path, content: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=path.parent,
+            mode="wb", dir=path.parent,
             prefix=f"{path.name}.", suffix=".tmp", delete=False,
         ) as handle:
             temporary = Path(handle.name)
-            handle.write(content)
+            handle.write(content.encode("utf-8") if isinstance(content, str) else content)
             handle.flush()
             os.fsync(handle.fileno())
         # os.replace over an existing target can transiently fail on Windows

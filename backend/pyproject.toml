@@ -14,6 +14,7 @@ dependencies = [
     "opencv-python>=5.0.0.93",
     "torch>=2.14.0",
     "torchvision>=0.29.0",
+    "imageio-ffmpeg>=0.6.0",
 ]
 
 [dependency-groups]

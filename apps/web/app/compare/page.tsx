@@ -16,15 +16,15 @@ import {
 } from "@/lib/compare-api";
 
 const CAMERA_BADGE: Record<string, string> = {
-  match: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  suspect: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  mismatch: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400",
+  match: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
+  suspect: "border-amber-500/30 bg-amber-500/10 text-amber-700",
+  mismatch: "border-red-500/30 bg-red-500/10 text-red-700",
 };
 
 const CAMERA_LABEL: Record<string, string> = {
-  match: "机位匹配",
-  suspect: "机位疑似偏移",
-  mismatch: "机位不一致",
+  match: "Camera matched",
+  suspect: "Camera may have moved",
+  mismatch: "Camera mismatch",
 };
 
 function formatDuration(ms: number): string {
@@ -59,10 +59,10 @@ export default function ComparePage() {
       setPlayers([]);
       setMessage(
         error instanceof TypeError
-          ? "无法连接对比服务，请稍后重试。"
+          ? "Cannot connect to the comparison service. Please try again."
           : error instanceof Error
             ? error.message
-            : "加载学员列表失败，请刷新重试。",
+            : "Could not load players. Refresh to try again.",
       );
     }
   }, []);
@@ -82,33 +82,33 @@ export default function ComparePage() {
       setNewName("");
       await refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "创建学员失败，请重试。");
+      setMessage(error instanceof Error ? error.message : "Could not create the player. Please try again.");
     }
   }
 
   if (players === null) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center gap-6 px-6 py-10">
-        <h1 className="text-2xl font-semibold">动作对比</h1>
-        <p role="status" className="text-zinc-600 dark:text-zinc-400">正在加载学员档案…</p>
+      <div className="page-shell page-shell-narrow flex flex-1 flex-col items-center gap-6">
+        <h1 className="page-title">Movement comparison</h1>
+        <p role="status" className="text-[var(--muted)]">Loading player profiles…</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
+    <div className="page-shell page-shell-narrow flex flex-1 flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">动作对比</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            把学员的基准动作存档和今天的动作逐帧叠在一起看。
+          <h1 className="page-title">Movement comparison</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Compare a saved baseline with a recent clip, frame by frame.
           </p>
         </div>
         <Link
           href="/compare/new"
-          className="h-10 rounded-full bg-foreground px-6 leading-10 text-background"
+          className="h-10 rounded-full bg-[var(--accent)] px-6 leading-10 text-[var(--surface)]"
         >
-          新建对比
+          New comparison
         </Link>
       </div>
 
@@ -119,30 +119,30 @@ export default function ComparePage() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void handleCreatePlayer();
           }}
-          placeholder="学员姓名"
-          className="h-10 w-48 rounded-full border border-black/[.08] bg-transparent px-4 text-sm outline-none focus:border-foreground dark:border-white/[.145]"
+          placeholder="Player name"
+          className="h-10 w-48 rounded-full border border-[var(--border)] bg-transparent px-4 text-sm outline-none focus:border-foreground"
         />
         <button
           onClick={() => void handleCreatePlayer()}
           disabled={!newName.trim()}
-          className="h-10 rounded-full border border-black/[.08] px-6 text-sm disabled:opacity-40 dark:border-white/[.145]"
+          className="h-10 rounded-full border border-[var(--border)] px-6 text-sm disabled:opacity-40"
         >
-          新建学员
+          Create player
         </button>
       </div>
 
       {message ? (
-        <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/[.06] p-4 text-sm text-zinc-700 dark:text-zinc-300">
+        <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/[.06] p-4 text-sm text-[var(--foreground)]">
           {message}
         </p>
       ) : null}
 
       {players.length === 0 && !message ? (
-        <div className="rounded-2xl border border-black/[.08] p-8 text-center dark:border-white/[.145]">
-          <h2 className="text-lg font-semibold">还没有学员档案</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
-            先在上方为学员创建档案，再录一段标准动作的基准视频存档。
-            之后每次训练都录一段对比视频，系统会逐帧对齐两次动作，帮你看清动作变化。
+        <div className="rounded-2xl border border-[var(--border)] p-8 text-center">
+          <h2 className="text-lg font-semibold">No player profiles yet</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-[var(--muted)]">
+            Create a player profile above, then save a baseline clip.
+            Record another clip after practice to review changes in the movement.
           </p>
         </div>
       ) : (
@@ -174,14 +174,14 @@ function PlayerCard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
-  const [templatePhases, setTemplatePhases] = useState("准备 发力 收势");
+  const [templatePhases, setTemplatePhases] = useState("Preparation Drive Follow-through");
 
   async function handleCreateTemplate() {
     const name = templateName.trim();
     if (!name) return;
     const phases = templatePhases.split(/[,，\s]+/).map((p) => p.trim()).filter(Boolean);
     if (phases.length === 0) {
-      setMessage("请至少填写一个阶段名称。");
+      setMessage("Enter at least one phase name.");
       return;
     }
     setBusy(true);
@@ -189,24 +189,24 @@ function PlayerCard({
     try {
       await createTemplate(player.player_id, name, phases);
       setTemplateName("");
-      setTemplatePhases("准备 发力 收势");
+      setTemplatePhases("Preparation Drive Follow-through");
       await onChanged();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "创建模板失败，请重试。");
+      setMessage(error instanceof Error ? error.message : "Could not create the template. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleDelete() {
-    if (!window.confirm(`确定删除学员「${player.name}」？其模板、视频片段和对比记录会一并删除。`)) return;
+    if (!window.confirm(`Delete player ${player.name}? This also deletes their templates, clips, and comparisons.`)) return;
     setBusy(true);
     setMessage(null);
     try {
       await deletePlayer(player.player_id);
       await onChanged();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "删除失败，请重试。");
+      setMessage(error instanceof Error ? error.message : "Could not delete. Please try again.");
       setBusy(false);
     }
   }
@@ -215,7 +215,7 @@ function PlayerCard({
   const firstTemplateId = template?.template_id ?? null;
 
   return (
-    <li className="rounded-2xl border border-black/[.08] p-5 dark:border-white/[.145]">
+    <li className="rounded-2xl border border-[var(--border)] p-5">
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => setExpanded((v) => !v)}
@@ -224,8 +224,8 @@ function PlayerCard({
         >
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-lg font-semibold">{player.name}</span>
-            <span className="text-xs text-zinc-500">
-              {detail ? `${detail.templates.length} 个模板 · ${detail.clips.length} 段视频 · ${detail.comparisons.length} 次对比` : "加载中…"}
+            <span className="text-xs text-[var(--muted)]">
+              {detail ? `${detail.templates.length} templates · ${detail.clips.length} clips · ${detail.comparisons.length} comparisons` : "Loading…"}
             </span>
           </div>
         </button>
@@ -233,40 +233,40 @@ function PlayerCard({
           href={firstTemplateId
             ? `/compare/new?player=${player.player_id}&template=${firstTemplateId}`
             : `/compare/new?player=${player.player_id}`}
-          className="h-9 rounded-full bg-foreground px-5 text-sm leading-9 text-background"
+          className="h-9 rounded-full bg-[var(--accent)] px-5 text-sm leading-9 text-[var(--surface)]"
         >
-          新建对比
+          New comparison
         </Link>
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="h-9 rounded-full border border-black/[.08] px-4 text-sm dark:border-white/[.145]"
+          className="h-9 rounded-full border border-[var(--border)] px-4 text-sm"
           aria-expanded={expanded}
         >
-          {expanded ? "收起" : "展开"}
+          {expanded ? "Collapse" : "Expand"}
         </button>
         <button
           onClick={() => void handleDelete()}
           disabled={busy}
-          className="h-9 rounded-full border border-red-500/30 px-4 text-sm text-red-600 disabled:opacity-40 dark:text-red-400"
+          className="h-9 rounded-full border border-red-500/30 px-4 text-sm text-red-600 disabled:opacity-40"
         >
-          删除
+          Delete
         </button>
       </div>
 
       {message ? (
-        <p role="status" className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
+        <p role="status" className="mt-3 text-sm text-[var(--muted)]">{message}</p>
       ) : null}
 
       {expanded ? (
-        <div className="mt-5 flex flex-col gap-6 border-t border-black/[.05] pt-5 dark:border-white/[.08]">
+        <div className="mt-5 flex flex-col gap-6 border-t border-[var(--border)] pt-5">
           {!detail ? (
-            <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">正在加载详情…</p>
+            <p role="status" className="text-sm text-[var(--muted)]">Loading details…</p>
           ) : (
             <>
               <section>
-                <h3 className="mb-2 text-sm font-semibold">动作模板</h3>
+                <h3 className="mb-2 text-sm font-semibold">Action template</h3>
                 {detail.templates.length === 0 ? (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">还没有模板，先在下方创建一个。</p>
+                  <p className="text-sm text-[var(--muted)]">No templates yet. Create one below.</p>
                 ) : (
                   <ul className="flex flex-col gap-2">
                     {detail.templates.map((item) => (
@@ -275,7 +275,7 @@ function PlayerCard({
                         {item.default_phases.map((phase) => (
                           <span
                             key={phase}
-                            className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                            className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs text-[var(--muted)]"
                           >
                             {phase}
                           </span>
@@ -288,42 +288,42 @@ function PlayerCard({
                   <input
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="模板名称，如 罚球"
-                    className="h-9 w-44 rounded-full border border-black/[.08] bg-transparent px-4 text-sm outline-none focus:border-foreground dark:border-white/[.145]"
+                    placeholder="Template name, e.g. Free throw"
+                    className="h-9 w-44 rounded-full border border-[var(--border)] bg-transparent px-4 text-sm outline-none focus:border-foreground"
                   />
                   <input
                     value={templatePhases}
                     onChange={(e) => setTemplatePhases(e.target.value)}
-                    placeholder="阶段，空格或逗号分隔"
-                    className="h-9 w-56 rounded-full border border-black/[.08] bg-transparent px-4 text-sm outline-none focus:border-foreground dark:border-white/[.145]"
+                    placeholder="Phases, separated by spaces or commas"
+                    className="h-9 w-56 rounded-full border border-[var(--border)] bg-transparent px-4 text-sm outline-none focus:border-foreground"
                   />
                   <button
                     onClick={() => void handleCreateTemplate()}
                     disabled={busy || !templateName.trim()}
-                    className="h-9 rounded-full border border-black/[.08] px-5 text-sm disabled:opacity-40 dark:border-white/[.145]"
+                    className="h-9 rounded-full border border-[var(--border)] px-5 text-sm disabled:opacity-40"
                   >
-                    新建动作模板
+                    Create action template
                   </button>
                 </div>
               </section>
 
               <section>
-                <h3 className="mb-2 text-sm font-semibold">视频片段</h3>
+                <h3 className="mb-2 text-sm font-semibold">Video clips</h3>
                 {detail.clips.length === 0 ? (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    还没有视频。新建一次对比，上传基准和对比两段视频。
+                  <p className="text-sm text-[var(--muted)]">
+                    No clips yet. Start a comparison and upload a baseline and a recent clip.
                   </p>
                 ) : (
                   <ul className="flex flex-col gap-2">
                     {detail.clips.slice(0, 8).map((clip) => (
                       <li key={clip.clip_id} className="flex flex-wrap items-center gap-2 text-sm">
                         <span className={`rounded-full px-2 py-0.5 text-xs ${clip.kind === "baseline"
-                          ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
-                          : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`}
+                          ? "bg-sky-500/10 text-sky-700"
+                          : "bg-violet-500/10 text-violet-700"}`}
                         >
-                          {clip.kind === "baseline" ? "基准" : "对比"}
+                          {clip.kind === "baseline" ? "Baseline" : "Comparison"}
                         </span>
-                        <span className="text-zinc-700 dark:text-zinc-300">{clipLabel(clip)}</span>
+                        <span className="text-[var(--foreground)]">{clipLabel(clip)}</span>
                       </li>
                     ))}
                   </ul>
@@ -331,9 +331,9 @@ function PlayerCard({
               </section>
 
               <section>
-                <h3 className="mb-2 text-sm font-semibold">历史对比</h3>
+                <h3 className="mb-2 text-sm font-semibold">Comparison history</h3>
                 {detail.comparisons.length === 0 ? (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">还没有对比记录。</p>
+                  <p className="text-sm text-[var(--muted)]">No comparisons yet.</p>
                 ) : (
                   <ul className="flex flex-col gap-2">
                     {detail.comparisons.slice(0, 8).map((item) => (
@@ -365,10 +365,10 @@ function ComparisonRow({ item, clips }: { item: ComparisonSummary; clips: ClipMe
         <span className={`rounded-full border px-2 py-0.5 text-xs ${CAMERA_BADGE[status]}`}>
           {CAMERA_LABEL[status]}
         </span>
-        <span className="text-zinc-700 dark:text-zinc-300">
-          {baseline ? baseline.filename : "基准片段"} vs {comparison ? comparison.filename : "对比片段"}
+        <span className="text-[var(--foreground)]">
+          {baseline ? baseline.filename : "Baseline clip"} vs {comparison ? comparison.filename : "Comparison clip"}
         </span>
-        <span className="text-xs text-zinc-500">{formatDate(item.created_at)}</span>
+        <span className="text-xs text-[var(--muted)]">{formatDate(item.created_at)}</span>
       </Link>
     </li>
   );

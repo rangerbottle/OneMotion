@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, responseError, submitAnalysis } from "./api";
+import type { HomeCourtSourceInput } from "./api";
 import { validateClip } from "./clip";
+import { validateHomeCourtImport } from "./homecourt";
 
 export function useAnalysis() {
   const router = useRouter();
@@ -12,20 +14,21 @@ export function useAnalysis() {
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => () => pending.current?.abort(), []);
 
-  async function analyze(file: File) {
+  async function analyze(file: File, source?: HomeCourtSourceInput) {
     if (pending.current) return;
     const controller = new AbortController();
     pending.current = controller;
     setSubmitting(true);
     setMessage("Checking your clip…");
     try {
-      await validateClip(file, controller.signal);
+      if (source) await validateHomeCourtImport(file, source, controller.signal);
+      else await validateClip(file, controller.signal);
       // The backend asks for Retry-After on 429 — honor it once instead of
       // failing the submission the user already waited for.
       let busyRetry = 0;
       for (;;) {
-        setMessage("Analyzing your shot… This can take up to two minutes.");
-        const response = await submitAnalysis(file, controller.signal);
+        setMessage(source ? "Extracting and analyzing the selection… This can take up to three minutes." : "Analyzing your shot… This can take up to two minutes.");
+        const response = await submitAnalysis(file, controller.signal, source);
         if (response.ok) {
           const result = await response.json();
           if (!controller.signal.aborted) router.push(`/analysis/${result.analysis_id}`);

@@ -51,7 +51,7 @@ def _phase_at(phases: list[PhaseSegment], frame: int) -> str | None:
 
 
 def compute_frame_biomechanics(
-    seq: ShotSequence, phases: list[PhaseSegment]
+    seq: ShotSequence, phases: list[PhaseSegment], *, timing_reliable: bool = True,
 ) -> list[BiomechanicsFrame]:
     """Return one annotation for every pose frame, aligned by frame_idx/t_ms."""
     side = shooting_side(seq)
@@ -145,6 +145,11 @@ def compute_frame_biomechanics(
             velocity, [scale_confidence, *neighbor_confidences],
             reason="body scale, adjacent wrist samples, or timestamps are unreliable",
         )
+        if not timing_reliable:
+            wrist_velocity = wrist_velocity.model_copy(update={
+                "value": None, "reliable": False,
+                "unavailable_reason": "source playback speed is not confirmed as real time; velocity is unavailable",
+            })
         is_release = i == release_frame
         release_value = (
             forearm

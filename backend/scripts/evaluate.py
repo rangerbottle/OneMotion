@@ -36,6 +36,10 @@ def evaluate(manifest_path: Path, tolerance_ms: float = 100) -> dict:
         source = case.get("label_source")
         if source not in {"human", "synthetic", "baseline"}:
             raise ValueError("label_source must identify human, synthetic, or baseline labels")
+        if not any(case.get(key) for key in (
+            "expected_phases_ms", "expected_unreliable", "expected_metrics"
+        )) and "expected_feedback" not in case:
+            raise ValueError(f"case {case.get('id', '<unnamed>')} requires at least one actual annotation")
         path = root / case["sequence"]
         if file_sha256(path) != case["sha256"]:
             raise ValueError(f"evaluation sequence changed: {case['id']}")

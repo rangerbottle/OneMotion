@@ -137,37 +137,48 @@ test("recording locks the submitted clip and preserves its container type", asyn
 test("compare entry lists players and creates a new one", async ({ page }) => {
   await page.goto("/compare");
   await expect(page.getByText("测试学员")).toBeVisible();
-  await page.getByPlaceholder("学员姓名").fill("小李");
-  await page.getByRole("button", { name: "新建学员" }).click();
+  await page.getByPlaceholder("Player name").fill("小李");
+  await page.getByRole("button", { name: "Create player" }).click();
   await expect(page.getByText("新学员")).toBeVisible();
 });
 
 test("compare workbench loads, steps frames and switches views", async ({ page }) => {
   await page.goto("/compare/demo");
-  await expect(page.getByText("对比工作台")).toBeVisible();
-  await expect(page.getByText("A · 基准", { exact: true })).toBeVisible();
+  await expect(page.getByText("Comparison workbench")).toBeVisible();
+  await expect(page.getByText("A · Baseline", { exact: true })).toBeVisible();
   // Keyboard frame stepping moves the playhead readout.
-  const timeBefore = await page.locator("span.font-mono").first().textContent();
+  const timeBefore = await page.getByTestId("comparison-clock").textContent();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect.poll(async () =>
-    page.locator("span.font-mono").first().textContent(),
+    page.getByTestId("comparison-clock").textContent(),
   ).not.toBe(timeBefore);
   // Space toggles playback.
   await page.keyboard.press(" ");
-  await expect(page.getByRole("button", { name: "暂停" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
   await page.keyboard.press(" ");
-  await expect(page.getByRole("button", { name: "播放" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
   // View-mode keys switch the active mode.
   await page.keyboard.press("3");
-  await expect(page.getByRole("button", { name: /差分/ })).toHaveClass(/bg-foreground/);
+  await expect(page.getByRole("button", { name: /Difference/ })).toHaveClass(/bg-\[var\(--accent\)\]/);
   await page.keyboard.press("1");
-  await expect(page.getByRole("button", { name: /双联/ })).toHaveClass(/bg-foreground/);
+  await expect(page.getByRole("button", { name: /Split/ })).toHaveClass(/bg-\[var\(--accent\)\]/);
   // Phase offset badges render from the fixture (发力: B 晚 1 帧).
-  await expect(page.getByText(/发力：B 晚 1 帧/)).toBeVisible();
+  await expect(page.getByText(/发力: B later 1 frame/)).toBeVisible();
   // Adding a marker via the dialog lists it after save.
-  await page.getByRole("button", { name: /＋标记/ }).click();
-  await page.getByPlaceholder("例如：手腕打开过晚").fill("测试标记");
-  await page.getByRole("button", { name: "添加", exact: true }).click();
-  await expect(page.getByText("正在加载对比工作台…")).toHaveCount(0);
+  await page.getByRole("button", { name: /\+ Marker/ }).click();
+  await page.getByPlaceholder("For example: wrist opens late").fill("测试标记");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText("Loading comparison workbench…")).toHaveCount(0);
+});
+
+
+test("full Curry source opens on demand and decodes through the browser API origin", async ({ page }) => {
+  await page.goto("/analysis/source");
+  await page.getByRole("button", { name:"View full Curry source video" }).click();
+  const source = page.locator('video[src$="/source-video"]');
+  await expect(source).toHaveAttribute("src", "http://127.0.0.1:8129/api/v1/templates/curry_v3/source-video");
+  await expect.poll(() => source.evaluate((video: HTMLVideoElement) => video.readyState)).toBeGreaterThanOrEqual(2);
+  await page.getByRole("button", { name:"Hide full Curry source video" }).click();
+  await expect(source).toHaveCount(0);
 });

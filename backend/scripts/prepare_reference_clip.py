@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import cv2
+import imageio_ffmpeg
 
 
 def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> tuple[int, int]:
@@ -39,9 +40,14 @@ def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> tuple[
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=output.parent, suffix=output.suffix, delete=False) as handle:
             temporary = Path(handle.name)
-        writer = cv2.VideoWriter(str(temporary), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
-        if not writer.isOpened():
-            raise RuntimeError(f"cannot create output video: {output}")
+        # OpenCV's mp4v output is not decodable by common web browsers.
+        # Encode the exact selected frames as H.264 without changing their rate.
+        writer = imageio_ffmpeg.write_frames(
+            str(temporary), (width, height), fps=fps, pix_fmt_in="bgr24",
+            pix_fmt_out="yuv420p", codec="libx264", macro_block_size=1,
+            output_params=["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2,setsar=1", "-movflags", "+faststart"],
+        )
+        writer.send(None)
 
         written = 0
         index = 0
@@ -68,7 +74,7 @@ def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> tuple[
             if timestamp_ms >= end_ms:
                 reached_end = True
                 break
-            writer.write(frame)
+            writer.send(frame)
             written += 1
 
         if written == 0:
@@ -81,13 +87,20 @@ def clip_video(source: Path, output: Path, start_ms: int, end_ms: int) -> tuple[
                 f"source is only ~{source_ms / 1000:.2f}s long but the requested interval ends at "
                 f"{end_ms / 1000:.2f}s — lower --end-ms or provide a longer clip"
             )
-        writer.release()
+        writer.close()
+        writer = None
+        check = cv2.VideoCapture(str(temporary))
+        try:
+            if not check.isOpened() or int(check.get(cv2.CAP_PROP_FRAME_COUNT)) != written:
+                raise RuntimeError("H.264 encoding failed; the previous reference was preserved")
+        finally:
+            check.release()
         temporary.replace(output)
         return written, start_ms + int(round(written * frame_ms))
     finally:
         capture.release()
         if writer is not None:
-            writer.release()
+            writer.close()
         if temporary is not None:
             temporary.unlink(missing_ok=True)
 
@@ -118,7 +131,7 @@ def main() -> None:
             "sha256": digest(args.output), "source_sha256": digest(args.source),
             "source_url": args.source_url, "start_ms": args.start_ms, "end_ms": effective_end_ms,
             "timing_mode": args.timing_mode, "time_scale_to_realtime": args.time_scale,
-        }]}, indent=2))
+        }]}, indent=2), encoding="utf-8")
     print(f"wrote {frames} frames to {args.output}")
     if effective_end_ms != args.end_ms:
         print(

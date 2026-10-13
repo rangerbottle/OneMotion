@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit --incremental false",
+    "fixtures": "node tests/generate-fixtures.mjs",
+    "pretest": "npm run fixtures",
     "test": "playwright test"
   },
   "dependencies": {

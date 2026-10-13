@@ -87,7 +87,7 @@ def metric_deltas(
             and not benchmark.timing_reliable
         ):
             reliable = False
-            reason = "selected template is slow-motion; timing comparison is disabled"
+            reason = "reference playback speed is not verified as real time; timing comparison is disabled"
         values.append(
             benchmark.metric_value(
                 name,

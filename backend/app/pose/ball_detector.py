@@ -164,13 +164,14 @@ def track_window(cfg: Settings, video_path: Path, phases) -> BallTrack:
         release = next(phase for phase in phases if phase.phase == "release")
     except StopIteration:
         return unavailable_track(0, 0, "phase segmentation lacks lift/release")
-    start_frame, end_frame = lift.start_frame, release.anchor_frame
-    detector = get_ball_detector(cfg)
-    if detector is None:
-        return unavailable_track(
-            start_frame, end_frame, "ball model not installed (models/yolo11n.pt)"
-        )
+    start_frame = lift.start_frame
+    end_frame = release.anchor_frame if release.anchor_frame is not None else release.start_frame
     try:
+        detector = get_ball_detector(cfg)
+        if detector is None:
+            return unavailable_track(
+                start_frame, end_frame, "ball model not installed (models/yolo11n.pt)"
+            )
         return detector.detect_window(
             video_path, start_frame, end_frame, timeout_s=cfg.analysis_timeout_s
         )

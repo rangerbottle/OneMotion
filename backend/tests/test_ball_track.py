@@ -115,3 +115,11 @@ def test_tempo_rejects_inverted_phase_order():
     inverted[3] = inverted[3].model_copy(update={"anchor_frame": 1})
     with pytest.raises(UnreliableData):
         shot_tempo_s(sequence(), inverted)
+
+
+def test_track_window_survives_model_initialization_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.pose.ball_detector.get_ball_detector", Mock(side_effect=OSError("bad weights")))
+    segments = phases()
+    segments[3].anchor_frame = None
+    track = track_window(Settings(data_dir=tmp_path), tmp_path / "clip.mp4", segments)
+    assert not track.available and "bad weights" in track.reason

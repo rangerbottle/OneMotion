@@ -6,7 +6,7 @@ import Workbench from "./workbench";
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={<div role="status" className="px-6 py-12 text-center text-sm text-zinc-500">正在加载…</div>}>
+    <Suspense fallback={<div role="status" className="page-shell text-center text-sm text-[var(--muted)]">Loading…</div>}>
       <CompareInner />
     </Suspense>
   );

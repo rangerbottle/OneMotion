@@ -10,6 +10,7 @@ from app.benchmarks.templates import (
     list_templates,
     load_template,
     template_video_path,
+    template_source_video_path,
 )
 from app.core.config import Settings, get_settings
 from app.schemas.template import TemplateSummary
@@ -50,4 +51,16 @@ def template_video(template_id: str, cfg: Cfg) -> FileResponse:
     path = template_video_path(cfg, profile)
     if path is None:
         raise HTTPException(404, f"template '{template_id}' has no replay video")
+    return FileResponse(path, media_type="video/mp4", filename=path.name)
+
+
+@router.get("/templates/{template_id}/source-video")
+def template_source_video(template_id: str, cfg: Cfg) -> FileResponse:
+    _require_active(template_id)
+    try:
+        path = template_source_video_path(cfg, load_template(cfg, template_id))
+    except (FileNotFoundError, ValueError):
+        path = None
+    if path is None:
+        raise HTTPException(404, "verified full source video is unavailable")
     return FileResponse(path, media_type="video/mp4", filename=path.name)

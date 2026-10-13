@@ -75,7 +75,7 @@ def assess_capture(seq: ShotSequence, phases: list[PhaseSegment]) -> CaptureQual
         guidance.append("Rotate the camera closer to a 90° side-on position.")
 
     status = "pass"
-    if body_visibility < 0.5 or confidence < 0.35:
+    if body_visibility < 0.5 or confidence < 0.35 or side_score < 0.55:
         status = "fail"
     elif reasons:
         status = "warn"

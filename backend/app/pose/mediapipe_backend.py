@@ -15,6 +15,7 @@ down to the canonical COCO-17 schema via `app.schemas.pose.BLAZEPOSE_TO_COCO17`
 """
 
 from pathlib import Path
+from app.schemas.media_source import SubjectROI
 
 from app.core.config import REPO_ROOT
 from app.schemas.pose import (
@@ -56,7 +57,9 @@ class MediaPipePoseBackend:
         )
         self._landmarker = vision.PoseLandmarker.create_from_options(options)
 
-    def estimate_video(self, video_path: Path) -> ShotSequence:
+    def estimate_video(self, video_path: Path, *, subject_roi: SubjectROI | None = None) -> ShotSequence:
+        if subject_roi is not None:
+            raise ValueError("subject selection is supported only by the YOLO backend")
         import cv2
         import mediapipe as mp
 

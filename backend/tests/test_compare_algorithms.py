@@ -169,3 +169,14 @@ def test_pose_signal_interpolates_missing_frames():
     t, signal = pose_signal(seq)
     assert np.all(np.isfinite(signal))
     assert np.allclose(signal.mean(), 0.0, atol=1e-9)
+
+
+def test_report_draws_b_in_native_pixels_before_affine():
+    from app.compare.report import _draw_skeleton, COLOR_B
+    from app.schemas.compare import AffineTransform
+    canvas = np.zeros((120, 200, 3), np.uint8)
+    point = Keypoint(name="nose", x=.6, y=.5, confidence=.95)
+    # B is 100x60, A is 200x120; after 2x + translation the point is (130, 64).
+    _draw_skeleton(canvas, [point], COLOR_B, AffineTransform(scale=2, tx=10, ty=4), 100, 60)
+    assert tuple(canvas[64, 130]) == COLOR_B
+    assert not canvas[60, 120].any()

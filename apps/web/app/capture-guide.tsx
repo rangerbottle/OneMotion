@@ -1,6 +1,6 @@
 export default function CaptureGuide() {
   return (
-    <section className="w-full max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-500/[.06] p-4">
+    <section className="surface w-full p-5">
       <div className="grid items-center gap-4 sm:grid-cols-[180px_1fr]">
         <svg
           viewBox="0 0 180 112"
@@ -20,7 +20,7 @@ export default function CaptureGuide() {
         </svg>
         <div>
           <h2 className="font-semibold">Match Curry&rsquo;s 90° side view</h2>
-          <ul className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
+          <ul className="mt-2 space-y-1 text-sm leading-6 text-[var(--muted)]">
             <li>• Put the camera on your shooting-hand side, perpendicular to the rim.</li>
             <li>• Keep your full body, shooting arm, and ball visible from dip through follow-through.</li>
             <li>• Use a stable camera around chest height; avoid zooming or panning.</li>

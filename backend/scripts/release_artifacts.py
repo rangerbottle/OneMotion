@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.benchmarks.provenance import file_sha256
 from app.benchmarks.templates import ACTIVE_TEMPLATE_ID, load_template, template_video_path
-from app.core.artifacts import verify_manifest
+from app.core.artifacts import verify_analysis_artifacts
 from app.core.config import settings
 from app.core.storage import atomic_write
 
@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--check", action="store_true", help="verify without changing the release")
     args = parser.parse_args()
     if args.check:
-        failures = verify_manifest(args.manifest)
+        failures = verify_analysis_artifacts(settings.model_copy(update={"artifact_manifest": args.manifest}))
         if failures:
             raise SystemExit("\n".join(failures))
     else:

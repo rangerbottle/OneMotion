@@ -38,7 +38,7 @@ def test_slow_motion_template_disables_timing_delta() -> None:
     tempo = next(item for item in deltas if item.name == "shot_tempo_s")
     assert tempo.reliable is False
     assert tempo.delta is None
-    assert "slow-motion" in (tempo.unavailable_reason or "")
+    assert "not verified" in (tempo.unavailable_reason or "")
     assert similarity_score(deltas, "timing") is None
     assert similarity_score(deltas, "form") == 100.0
 

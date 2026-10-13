@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.benchmarks.templates import ACTIVE_TEMPLATE_ID, load_template, template_video_path
-from app.core.artifacts import verify_manifest
+from app.core.artifacts import verify_analysis_artifacts
 from app.core.config import Settings, get_settings
 
 router = APIRouter()
@@ -19,11 +19,7 @@ def health() -> dict[str, str]:
 
 @router.get("/ready")
 def ready(cfg: Cfg):
-    failures = verify_manifest(cfg.artifact_manifest, {
-        "models/yolo11n-pose.pt": cfg.model_path,
-        "data/benchmarks/curry_v3.json": cfg.benchmark_path,
-        "data/raw_videos/curry/curry_v3_reference.mp4": cfg.raw_videos_dir / "curry_v3_reference.mp4",
-    })
+    failures = verify_analysis_artifacts(cfg)
     if cfg.pose_backend == "yolo" and not cfg.model_path.is_file():
         failures.append(f"pose model missing: {cfg.model_path}")
     try:
@@ -44,6 +40,10 @@ def ready(cfg: Cfg):
         cfg.compare_videos_dir,
         cfg.compare_clips_dir,
         cfg.compare_comparisons_dir,
+        cfg.compare_players_dir,
+        cfg.compare_templates_dir,
+        cfg.compare_reports_dir,
+        cfg.training_sessions_dir,
     ):
         try:
             directory.mkdir(parents=True, exist_ok=True)

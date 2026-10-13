@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAnalysis } from "@/lib/use-analysis";
 import { MAX_CLIP_SECONDS, recordingFilename } from "@/lib/clip";
 import CaptureGuide from "../capture-guide";
+import AnalysisEntryNav from "../components/analysis-entry-nav";
 
 type CameraState = "idle" | "requesting" | "on" | "recording" | "recorded" | "error";
 
@@ -13,9 +14,11 @@ export default function RecordPage() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const previewRef = useRef<string | null>(null);
 
   const [state, setState] = useState<CameraState>("idle");
   const [clip, setClip] = useState<Blob | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { analyze, submitting, message, setMessage } = useAnalysis();
   const mounted = useRef(false);
   const requesting = useRef(false);
@@ -35,6 +38,8 @@ export default function RecordPage() {
       }
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+      previewRef.current = null;
     };
   }, []);
 
@@ -72,9 +77,18 @@ export default function RecordPage() {
     const stream = streamRef.current;
     if (!stream || submitting || recorderRef.current?.state === "recording") return;
     setClip(null);
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = null;
+    setPreviewUrl(null);
     setMessage(null);
     chunksRef.current = [];
     try {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.removeAttribute("src");
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play().catch(() => undefined);
+      }
       const mimeType = ["video/webm;codecs=vp8", "video/mp4", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorderRef.current = recorder;
@@ -84,7 +98,20 @@ export default function RecordPage() {
       recorder.onstop = () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         if (!mounted.current) return;
-        setClip(new Blob(chunksRef.current, { type: recorder.mimeType }));
+        const recorded = new Blob(chunksRef.current, { type: recorder.mimeType });
+        if (!recorded.size) {
+          setState("on");
+          setMessage("The recording is empty. Record another shot before analyzing.");
+          return;
+        }
+        const url = URL.createObjectURL(recorded);
+        previewRef.current = url;
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.srcObject = null;
+        }
+        setPreviewUrl(url);
+        setClip(recorded);
         setState("recorded");
       };
       recorder.onerror = () => {
@@ -102,6 +129,7 @@ export default function RecordPage() {
         if (recorder.state === "recording") recorder.stop();
       }, MAX_CLIP_SECONDS * 1000 - 250); // Leave room for the final encoded frame.
     } catch {
+      setState("on");
       setMessage("Video recording is unavailable. Try uploading a clip instead.");
     }
   }
@@ -111,28 +139,36 @@ export default function RecordPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-6 px-6 py-10">
-      <h1 className="text-2xl font-semibold">Record your shot</h1>
-      <p className="max-w-md text-center text-zinc-600 dark:text-zinc-400">
-        Every comparison uses the Curry v3 real-time reference. Record one shot,
-        max 12 seconds.
+    <div className="page-shell page-shell-narrow flex flex-1 flex-col gap-6">
+      <header><p className="eyebrow">Analyze / Record</p><h1 className="page-title mt-2">Record your shot</h1></header>
+      <AnalysisEntryNav />
+      <p className="page-description">
+        Record one complete shot, max 12 seconds, for the Curry v3 comparison.
+        Timing comparison requires verified playback speed.
       </p>
 
       <CaptureGuide />
 
       <video
         ref={videoRef}
+        src={previewUrl ?? undefined}
+        controls={state === "recorded"}
         playsInline
         muted
-        className="aspect-video w-full max-w-2xl rounded-xl bg-black"
+        className="aspect-video w-full rounded-2xl bg-black"
       />
+      {state === "recorded" ? (
+        <p className="text-sm text-[var(--muted)]">
+          Review your recording before analyzing. Select Record to replace it with a new shot.
+        </p>
+      ) : null}
 
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-3">
         {state === "idle" || state === "error" || state === "requesting" ? (
           <button
             onClick={startCamera}
             disabled={state === "requesting" || submitting}
-            className="h-12 rounded-full bg-foreground px-8 text-background"
+            className="button-primary"
           >
             {state === "requesting" ? "Waiting for camera…" : "Enable camera"}
           </button>
@@ -141,7 +177,7 @@ export default function RecordPage() {
           <button
             onClick={startRecording}
             disabled={submitting}
-            className="h-12 rounded-full bg-red-600 px-8 text-white"
+            className="button-primary"
           >
             Record
           </button>
@@ -149,7 +185,7 @@ export default function RecordPage() {
         {state === "recording" ? (
           <button
             onClick={stopRecording}
-            className="h-12 rounded-full border px-8"
+            className="button-secondary"
           >
             Stop
           </button>
@@ -158,7 +194,7 @@ export default function RecordPage() {
           <button
             onClick={() => clip && void analyze(new File([clip], recordingFilename(clip.type), { type: clip.type }))}
             disabled={submitting}
-            className="h-12 rounded-full bg-foreground px-8 text-background"
+            className="button-primary"
           >
             {submitting ? "Analyzing…" : "Analyze my shot"}
           </button>
@@ -166,14 +202,15 @@ export default function RecordPage() {
       </div>
 
       {message ? (
-        <p role="status" className="max-w-md text-center text-sm text-zinc-600 dark:text-zinc-400">
+        <p role="status" className="text-sm text-[var(--muted)]">
           {message}
         </p>
       ) : null}
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-[var(--muted)]">
         No camera? <Link href="/upload" className="underline">Upload a clip</Link> instead.
       </p>
+      <Link href="/homecourt" className="text-sm text-[var(--accent)] underline underline-offset-4">Import a HomeCourt training video</Link>
     </div>
   );
 }
