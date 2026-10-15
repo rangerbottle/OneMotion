@@ -111,6 +111,14 @@ export type CaptureQuality = {
   method: string;
 };
 
+export type ShotRating = {
+  verdict: "early" | "perfect" | "late" | null;
+  timing_delta_ms: number | null;
+  confidence: number;
+  reliable: boolean;
+  reason: string | null;
+};
+
 export type AnalysisResult = {
   analysis_id: string;
   benchmark_version: string;
@@ -123,6 +131,7 @@ export type AnalysisResult = {
   timing_reliable: boolean;
   quality: AnalysisQuality | null;
   capture_quality: CaptureQuality | null;
+  shot_rating?: ShotRating | null;
   phases: PhaseSegment[];
   metrics: MetricValue[];
   feedback: FeedbackItem[];

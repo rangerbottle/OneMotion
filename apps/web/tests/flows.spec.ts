@@ -182,3 +182,10 @@ test("full Curry source opens on demand and decodes through the browser API orig
   await page.getByRole("button", { name:"Hide full Curry source video" }).click();
   await expect(source).toHaveCount(0);
 });
+
+test("report shows the release-timing shot meter", async ({ page }) => {
+  await page.goto("/analysis/demo");
+  await expect(page.getByText("Release timing")).toBeVisible();
+  await expect(page.getByText("Perfect release")).toBeVisible();
+  await expect(page.getByText(/20ms after the jump apex/)).toBeVisible();
+});

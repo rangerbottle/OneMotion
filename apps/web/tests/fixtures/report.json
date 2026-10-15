@@ -128,5 +128,12 @@
   ],
   "media_expires_at": null,
   "player_video_url": "/api/v1/analysis/demo/video",
-  "template_video_url": "/api/v1/templates/curry_v3/video"
+  "template_video_url": "/api/v1/templates/curry_v3/video",
+  "shot_rating": {
+    "verdict": "perfect",
+    "timing_delta_ms": 20,
+    "confidence": 0.88,
+    "reliable": true,
+    "reason": null
+  }
 }

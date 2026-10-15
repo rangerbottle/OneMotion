@@ -166,6 +166,17 @@ height + elbow angle. Occlusion-aware (raw confidence < 0.5 = missing).
 apex. Occluded dips fall back to the shot-window start and mark affected
 phases `degraded`; a 1s-capped follow-through is marked `censored`.
 
+### Shot rating (`analysis/rating.py`)
+
+The quick "shot meter" verdict on every analysis: `rate_release_timing`
+compares the release anchor against the jump apex (lowest ankle-height
+frame). `timing_delta_ms = t_release − t_apex` → `early` / `perfect`
+(|delta| ≤ 60 ms) / `late`. Ankles untracked through the jump (<80%
+coverage), a degraded release anchor, or no measurable jump (<3% of
+standing height) all yield `verdict=None` with a reason — never fabricated.
+Persisted on `AnalysisResult.shot_rating`; the report page renders the
+yellow/green/red meter from it.
+
 ### Confidence gating is load-bearing
 
 Every metric carries confidence, coverage, reliability, and a nullable value.

@@ -77,6 +77,16 @@ class CaptureQuality(BaseModel):
     method: str = "pose_2d_side_likelihood_v1"
 
 
+class ShotRating(BaseModel):
+    """Quick release-timing verdict ("2K shot meter"): release vs. jump apex."""
+
+    verdict: Literal["early", "perfect", "late"] | None = None
+    timing_delta_ms: int | None = None  # release − apex; negative = early
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    reliable: bool = False
+    reason: str | None = None
+
+
 class AnalysisResult(BaseModel):
     analysis_id: str
     benchmark_version: str
@@ -93,6 +103,7 @@ class AnalysisResult(BaseModel):
     phases: list[PhaseSegment]
     metrics: list[MetricValue]
     feedback: list[FeedbackItem]  # top 3, priority ordered
+    shot_rating: ShotRating | None = None  # None on legacy reports or insufficient evidence
     measurement_evidence: dict[str, dict[str, float | bool | str | None]] = Field(default_factory=dict)
     # Skeleton replay (FR-4.2): player sequence + benchmark canonical sequence.
     # Optional so analyses persisted before replay was added still load.

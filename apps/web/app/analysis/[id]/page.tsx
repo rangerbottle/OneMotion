@@ -5,6 +5,7 @@ import {
   type AnalysisResult,
   type MetricValue,
   type PhaseSegment,
+  type ShotRating,
 } from "@/lib/api";
 import SkeletonReplay from "./skeleton-replay";
 import SourceVideo from "@/app/components/reference-source-video";
@@ -61,6 +62,54 @@ function Score({ label, value }: { label: string; value: number | null }) {
   );
 }
 
+const RATING_META: Record<string, { label: string; color: string }> = {
+  early: { label: "Early release", color: "#eab308" },
+  perfect: { label: "Perfect release", color: "#22c55e" },
+  late: { label: "Late release", color: "#ef4444" },
+};
+
+function ShotMeter({ rating }: { rating: ShotRating | null | undefined }) {
+  if (!rating) return null;
+  if (!rating.reliable || rating.verdict === null || rating.timing_delta_ms === null) {
+    return (
+      <div className="rounded-xl border border-[var(--border)] px-5 py-4 text-sm text-[var(--muted)]">
+        Release timing unavailable{rating.reason ? `: ${rating.reason}` : " (insufficient evidence)"}
+      </div>
+    );
+  }
+  const meta = RATING_META[rating.verdict];
+  // Map ±300 ms onto the bar; the green band marks the ±60 ms perfect window.
+  const clamped = Math.min(Math.max(rating.timing_delta_ms, -300), 300);
+  const pos = 50 + (clamped / 300) * 50;
+  return (
+    <div className="rounded-xl border border-[var(--border)] px-5 py-4">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wide text-[var(--muted)]">Release timing</span>
+        <span className="text-sm font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+      </div>
+      <div className="relative h-3 overflow-visible rounded-full"
+        role="img"
+        aria-label={`release timing ${meta.label} ${rating.timing_delta_ms}ms`}
+        style={{ background: "linear-gradient(to right, #eab308 0%, #facc15 32%, #22c55e 40%, #22c55e 60%, #facc15 68%, #ef4444 100%)" }}>
+        <div
+          className="absolute -top-1.5 h-6 w-1.5 -translate-x-1/2 rounded-full bg-foreground shadow"
+          style={{ left: `${pos}%` }}
+        />
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-[var(--muted)]">
+        <span>Early</span>
+        <span className="tabular-nums">
+          {rating.timing_delta_ms === 0
+            ? "Released exactly at the jump apex"
+            : `Released ${Math.abs(rating.timing_delta_ms)}ms ${rating.timing_delta_ms > 0 ? "after" : "before"} the jump apex`}
+          {" "}· {(rating.confidence * 100).toFixed(0)}% confidence
+        </span>
+        <span>Late</span>
+      </div>
+    </div>
+  );
+}
+
 export default async function AnalysisPage({
   params,
 }: {
@@ -102,6 +151,7 @@ export default async function AnalysisPage({
           <Score label="Form" value={result.form_score} />
           <Score label="Timing" value={result.timing_score} />
         </div>
+        <ShotMeter rating={result.shot_rating ?? null} />
         {result.quality ? (
           <div className="text-center text-sm text-[var(--muted)]">
             Evidence: {result.quality.valid_metrics}/{result.quality.expected_metrics} reliable metrics

@@ -15,6 +15,7 @@ from app.analysis.biomechanics import compute_frame_biomechanics
 from app.analysis.capture_quality import assess_capture
 from app.analysis.metrics import compute_all, measurement_evidence
 from app.analysis.phases import segment
+from app.analysis.rating import rate_release_timing
 from app.analysis.results import (
     MeasurementEvidence,
     apply_comparison_policy,
@@ -171,6 +172,7 @@ def _create_analysis(
                     raise ValueError("clip exceeds 12 seconds — upload one shot only")
                 phases = segment(sequence)
                 sequence.ball_track = track_window(cfg, video_path, phases)
+                shot_rating = rate_release_timing(sequence, phases)
                 player_metrics = compute_all(sequence, phases)
                 evidence = measurement_evidence(sequence, phases)
                 capture_quality = assess_capture(sequence, phases)
@@ -184,6 +186,7 @@ def _create_analysis(
                     feedback=[],
                     capture_quality=capture_quality,
                     source=media_source,
+                    shot_rating=shot_rating,
                     player_video_url=f"/api/v1/analysis/{analysis_id}/video",
                     media_expires_at=expires_at,
                 )
