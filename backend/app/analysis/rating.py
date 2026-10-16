@@ -1,14 +1,19 @@
 """Quick shot rating: the "2K shot meter" — release timing vs. jump apex.
 
-A one-motion jump shot should release at (or just before) the apex of the
-jump. The verdict compares the release frame (elbow-extension anchor from
-phase segmentation) against the jump apex (the lowest ankle height frame):
+A jump shot should release at (or just before) the apex of the body's rise.
+The verdict compares the release frame (elbow-extension anchor from phase
+segmentation) against the jump apex, the highest hip position inside the
+lift window:
 
     delta = t_release − t_apex     < 0: early ·  ≈0: perfect ·  > 0: late
 
-Evidence gating follows the project convention: occluded ankles, a missing
-release anchor, or no measurable jump yield verdict=None with a reason —
-never a fabricated rating.
+The apex search is bounded to [load end, release + 0.5 s] — ankle/hip noise
+during setup (dribbling, stepping) must not win over the actual jump.
+
+Evidence gating follows the project convention: hips untracked through the
+jump (<80% coverage), a degraded release anchor, or no measurable rise
+(<3% of standing height) all yield verdict=None with a reason — never a
+fabricated rating.
 """
 
 import numpy as np
@@ -20,31 +25,32 @@ from app.schemas.analysis import PhaseSegment, ShotRating
 from app.schemas.pose import ShotSequence
 
 CONF_MIN = 0.5
-MIN_ANKLE_COVERAGE = 0.8
-# A jump must move the ankles by at least this share of standing height to be
-# a jump; otherwise apex timing is noise.
+MIN_HIP_COVERAGE = 0.8
+# The hips must rise by at least this share of standing height for an apex
+# to be real; below it the "apex" is pose noise on a standstill shot.
 MIN_JUMP_HEIGHT_RATIO = 0.03
 PERFECT_BAND_MS = 60  # |delta| within this → perfect
+POST_RELEASE_APEX_MS = 500  # an early release puts the apex just after release
 
 
-def _ankle_series(seq: ShotSequence, start: int, end: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Per-frame ankle height (lower y = higher jump), validity and confidence."""
+def _hip_series(seq: ShotSequence, start: int, end: int) -> tuple[np.ndarray, np.ndarray]:
+    """Per-frame hip midpoint height (pixel y, lower = higher) + confidence."""
+    left = kp_series(seq, "left_hip")
+    right = kp_series(seq, "right_hip")
     n = end - start + 1
     y = np.full(n, np.nan)
     conf = np.zeros(n)
     for i in range(start, end + 1):
         ys, cs = [], []
-        for name in ("left_ankle", "right_ankle"):
+        for name, pts in (("left_hip", left), ("right_hip", right)):
             c = raw_conf(seq, i, name)
             if c >= CONF_MIN:
-                # series() returns pixel space; normalize by frame height so the
-                # jump-amplitude ratio against standing height is unit-free.
-                ys.append(float(kp_series(seq, name)[i, 1]) / seq.height)
+                ys.append(float(pts[i, 1]))
                 cs.append(c)
         if ys:
             y[i - start] = float(np.mean(ys))
             conf[i - start] = min(cs)
-    return y, conf, np.isfinite(y)
+    return y, conf
 
 
 def rate_release_timing(
@@ -52,6 +58,7 @@ def rate_release_timing(
 ) -> ShotRating:
     release_phase = phase_of(phases, "release")
     dip = phase_of(phases, "dip")
+    load = phase_of(phases, "load")
     follow = phase_of(phases, "follow_through")
     if release_phase.degraded or release_phase.censored:
         return ShotRating(
@@ -62,35 +69,57 @@ def rate_release_timing(
             reason="release anchor is degraded — release timing cannot be judged",
         )
     release = release_phase.anchor_frame
+    release_ms = seq.frames[release].t_ms
 
-    start, end = dip.start_frame, follow.end_frame
-    y, conf, valid = _ankle_series(seq, start, end)
-    coverage = float(valid.mean()) if len(valid) else 0.0
-    if coverage < MIN_ANKLE_COVERAGE:
+    apex_end = phase_of(phases, "lift").end_frame
+    # Extend past release so an early release's apex is still observable.
+    while apex_end < follow.end_frame and seq.frames[apex_end].t_ms < release_ms + POST_RELEASE_APEX_MS:
+        apex_end += 1
+
+    y, conf = _hip_series(seq, 0, follow.end_frame)
+    valid = np.isfinite(y)
+    apex_window = y[load.end_frame : apex_end + 1]
+    apex_valid = np.isfinite(apex_window)
+    coverage = float(apex_valid.mean()) if len(apex_valid) else 0.0
+    if coverage < MIN_HIP_COVERAGE:
         return ShotRating(
             verdict=None,
             timing_delta_ms=None,
             confidence=round(coverage, 3),
             reliable=False,
-            reason="ankles are not tracked through the jump — check that feet stay in frame",
+            reason="hips are not tracked through the jump — check that the whole body stays in frame",
         )
-    y = np.interp(np.arange(len(y)), np.flatnonzero(valid), y[valid])
 
-    # Jump amplitude: standing baseline (median ankle height before the dip)
-    # minus the apex. Expressed as a share of standing height.
-    baseline_y, baseline_conf, baseline_valid = _ankle_series(seq, 0, max(dip.start_frame, 0))
-    if not baseline_valid.any():
-        baseline_y = y[: max(1, dip.start_frame - start + 1)]
-        baseline_conf = conf[: max(1, dip.start_frame - start + 1)]
-    baseline = float(np.median(baseline_y))
+    baseline_end = max(load.end_frame, dip.start_frame)
+    baseline_vals = y[dip.start_frame : baseline_end + 1]
+    baseline_vals = baseline_vals[np.isfinite(baseline_vals)]
+    if not len(baseline_vals):
+        baseline_vals = y[np.isfinite(y)][:3]
+    if not len(baseline_vals):
+        return ShotRating(
+            verdict=None, timing_delta_ms=None, confidence=0.0, reliable=False,
+            reason="hips are not tracked before the jump — cannot establish a baseline",
+        )
+    baseline = float(np.median(baseline_vals))
+    apex_offset = int(np.nanargmin(apex_window))
+    apex_frame = load.end_frame + apex_offset
+
     try:
-        standing = _standing_height_px(seq, phases) / seq.height  # normalize to [0,1]
+        standing_norm = _standing_height_px(seq, phases) / seq.height
     except UnreliableData:
-        standing = None
-    apex_idx = int(np.argmin(y))
-    apex_abs = start + apex_idx
-    jump_ratio = None if standing is None else (baseline - y[apex_idx]) / standing
-    if jump_ratio is not None and jump_ratio < MIN_JUMP_HEIGHT_RATIO:
+        standing_norm = None
+    if standing_norm is None:
+        # Without a height normalization the amplitude gate cannot run —
+        # a raw-frame apex is pose noise, so there is no honest verdict.
+        return ShotRating(
+            verdict=None,
+            timing_delta_ms=None,
+            confidence=round(float(conf.mean()), 3),
+            reliable=False,
+            reason="standing height could not be measured — jump amplitude is unknown",
+        )
+    jump_ratio = (baseline - y[apex_frame]) / seq.height / standing_norm
+    if jump_ratio < MIN_JUMP_HEIGHT_RATIO:
         return ShotRating(
             verdict=None,
             timing_delta_ms=None,
@@ -99,7 +128,7 @@ def rate_release_timing(
             reason="no measurable jump — release timing is undefined for a standstill shot",
         )
 
-    delta_ms = int(seq.frames[release].t_ms - seq.frames[apex_abs].t_ms)
+    delta_ms = int(seq.frames[release].t_ms - seq.frames[apex_frame].t_ms)
     verdict = "perfect" if abs(delta_ms) <= perfect_band_ms else ("early" if delta_ms < 0 else "late")
     return ShotRating(
         verdict=verdict,
