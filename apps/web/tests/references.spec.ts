@@ -48,6 +48,10 @@ test("view and platform filters compose, expose missing footage, and reset", asy
   await expect(page).toHaveURL(/view=front&platform=youtube/);
   await expect(page.getByRole("region", { name: "No matching references", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Show all references", exact: true }).click();
+  // Wait for the reset navigation to commit before clicking the next filter —
+  // otherwise the click can land on the stale page whose links still carry
+  // platform=youtube (RSC navigation is async).
+  await expect(page).toHaveURL(/\/references$/);
   await views.getByRole("link", { name: /^Side / }).click();
   await expect(page.getByRole("heading", { name: "No reviewed side-view shots yet", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Current scored reference", exact: true })).toBeVisible();

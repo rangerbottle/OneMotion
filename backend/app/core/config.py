@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     model_path: Path = REPO_ROOT / "models" / "yolo11n-pose.pt"
     ball_model_path: Path = REPO_ROOT / "models" / "yolo11n.pt"
     ball_min_conf: float = Field(default=0.25, ge=0.0, le=1.0)
+    # Larger inference size than the pose model: a basketball is a small,
+    # fast object — 640 misses most frames on 480p clips.
+    ball_imgsz: int = Field(default=1280, ge=320, le=1920)
     artifact_manifest: Path = REPO_ROOT / "infra" / "artifacts.json"
     media_ttl_hours: int = Field(default=24, ge=1)
     analysis_concurrency: int = Field(default=1, ge=1, le=4)

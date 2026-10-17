@@ -126,7 +126,9 @@ indices. YOLO is the only working backend (MediaPipe crashes on the dev host;
 
 `track_window(cfg, video_path, phases)` runs a separate COCO detection model
 (`ONEMOTION_BALL_MODEL_PATH`, default `models/yolo11n.pt`; class 32 "sports
-ball", threshold `ONEMOTION_BALL_MIN_CONF`) only over the **lift → release**
+ball", threshold `ONEMOTION_BALL_MIN_CONF`, inference size
+`ONEMOTION_BALL_IMGSZ` default 1280 — larger than the pose model because a
+basketball is a small fast object and 640 misses most frames on ≤720p clips)
 frame window, for both player uploads (`routes_analysis.create_analysis`) and
 the benchmark canonical clip (`benchmarks/curry.py`). The result rides on
 `ShotSequence.ball_track` (`BallTrack` in `schemas/pose.py`), so it persists
@@ -248,7 +250,7 @@ single-frame controls. API error shapes: implemented routes use
   pydantic-settings, `get_settings()` `lru_cache`d so tests can override).
   Key vars: `ONEMOTION_DATA_DIR`, `ONEMOTION_POSE_BACKEND`,
   `ONEMOTION_MODEL_PATH`, `ONEMOTION_ARTIFACT_MANIFEST`,
-  `ONEMOTION_BALL_MODEL_PATH`, `ONEMOTION_BALL_MIN_CONF`,
+  `ONEMOTION_BALL_MODEL_PATH`, `ONEMOTION_BALL_MIN_CONF`, `ONEMOTION_BALL_IMGSZ`,
   `ONEMOTION_ANALYSIS_CONCURRENCY`, `ONEMOTION_ANALYSIS_TIMEOUT_S`,
   `ONEMOTION_ALLOWED_ORIGINS`, `ONEMOTION_WARM_MODEL`,
   `ONEMOTION_MEDIA_TTL_HOURS`. Frontend: `NEXT_PUBLIC_API_BASE` (browser,

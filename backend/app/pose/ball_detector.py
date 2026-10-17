@@ -21,7 +21,7 @@ SPORTS_BALL_CLASS = 32
 
 
 class BallDetector:
-    def __init__(self, weights_path: Path, min_conf: float = 0.25, imgsz: int = 640) -> None:
+    def __init__(self, weights_path: Path, min_conf: float = 0.25, imgsz: int = 1280) -> None:
         from ultralytics import YOLO
 
         self._model = YOLO(str(weights_path))
@@ -133,8 +133,8 @@ class BallDetector:
 
 
 @lru_cache
-def _build_detector(weights_path: str, min_conf: float) -> BallDetector:
-    return BallDetector(Path(weights_path), min_conf)
+def _build_detector(weights_path: str, min_conf: float, imgsz: int) -> BallDetector:
+    return BallDetector(Path(weights_path), min_conf, imgsz)
 
 
 def get_ball_detector(cfg: Settings) -> BallDetector | None:
@@ -145,7 +145,7 @@ def get_ball_detector(cfg: Settings) -> BallDetector | None:
     """
     if not cfg.ball_model_path.is_file():
         return None
-    return _build_detector(str(cfg.ball_model_path), cfg.ball_min_conf)
+    return _build_detector(str(cfg.ball_model_path), cfg.ball_min_conf, cfg.ball_imgsz)
 
 
 def unavailable_track(start_frame: int, end_frame: int, reason: str) -> BallTrack:
