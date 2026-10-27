@@ -42,8 +42,10 @@ function clipLabel(clip: ClipMeta): string {
 export default function ComparePage() {
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [details, setDetails] = useState<Record<string, PlayerDetail>>({});
+  const [failedDetails, setFailedDetails] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -51,10 +53,13 @@ export default function ComparePage() {
       setPlayers(list);
       const settled = await Promise.allSettled(list.map((player) => getPlayer(player.player_id)));
       const map: Record<string, PlayerDetail> = {};
-      for (const result of settled) {
-        if (result.status === "fulfilled") map[result.value.player.player_id] = result.value;
-      }
+      const failed = new Set<string>();
+      settled.forEach((result, index) => {
+        if (result.status === "fulfilled") map[list[index].player_id] = result.value;
+        else failed.add(list[index].player_id);
+      });
       setDetails(map);
+      setFailedDetails(failed);
     } catch (error) {
       setPlayers([]);
       setMessage(
@@ -75,7 +80,8 @@ export default function ComparePage() {
 
   async function handleCreatePlayer() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || creating) return; // no duplicate profiles on double-click / Enter spam
+    setCreating(true);
     setMessage(null);
     try {
       await createPlayer(name);
@@ -83,6 +89,8 @@ export default function ComparePage() {
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create the player. Please try again.");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -124,7 +132,7 @@ export default function ComparePage() {
         />
         <button
           onClick={() => void handleCreatePlayer()}
-          disabled={!newName.trim()}
+          disabled={creating || !newName.trim()}
           className="h-10 rounded-full border border-[var(--border)] px-6 text-sm disabled:opacity-40"
         >
           Create player
@@ -152,6 +160,7 @@ export default function ComparePage() {
               key={player.player_id}
               player={player}
               detail={details[player.player_id] ?? null}
+              detailFailed={failedDetails.has(player.player_id)}
               onChanged={refresh}
             />
           ))}
@@ -164,10 +173,12 @@ export default function ComparePage() {
 function PlayerCard({
   player,
   detail,
+  detailFailed,
   onChanged,
 }: {
   player: Player;
   detail: PlayerDetail | null;
+  detailFailed: boolean;
   onChanged: () => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -260,7 +271,14 @@ function PlayerCard({
       {expanded ? (
         <div className="mt-5 flex flex-col gap-6 border-t border-[var(--border)] pt-5">
           {!detail ? (
-            <p role="status" className="text-sm text-[var(--muted)]">Loading details…</p>
+            detailFailed ? (
+              <div role="alert" className="flex items-center gap-3 text-sm text-amber-600">
+                <p>Could not load details for this player.</p>
+                <button type="button" onClick={() => void onChanged()} className="rounded-full border px-3 py-1">Retry</button>
+              </div>
+            ) : (
+              <p role="status" className="text-sm text-[var(--muted)]">Loading details…</p>
+            )
           ) : (
             <>
               <section>

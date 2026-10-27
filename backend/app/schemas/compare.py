@@ -86,11 +86,12 @@ class CameraCheckResult(BaseModel):
 class AffineTransform(BaseModel):
     # Origin-centered pixel transform mapping clip B onto clip A's frame
     # (x' = scale·R·x + t), in clip A's pixel resolution; both renderers
-    # (frontend stage and report drawing) use this same convention.
-    tx: float = Field(default=0.0, allow_inf_nan=False)
-    ty: float = Field(default=0.0, allow_inf_nan=False)
-    scale: float = Field(default=1.0, gt=0, allow_inf_nan=False)
-    rotation_deg: float = Field(default=0.0, allow_inf_nan=False)
+    # (frontend stage and report drawing) use this same convention. Bounds
+    # keep absurd values from reaching OpenCV drawing calls (500s).
+    tx: float = Field(default=0.0, ge=-4000.0, le=4000.0, allow_inf_nan=False)
+    ty: float = Field(default=0.0, ge=-4000.0, le=4000.0, allow_inf_nan=False)
+    scale: float = Field(default=1.0, ge=0.1, le=5.0, allow_inf_nan=False)
+    rotation_deg: float = Field(default=0.0, ge=-45.0, le=45.0, allow_inf_nan=False)
 
 
 class ClipMeta(BaseModel):

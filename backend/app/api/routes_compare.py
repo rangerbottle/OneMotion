@@ -126,7 +126,10 @@ def delete_player(player_id: str, cfg: Cfg) -> None:
             store.delete_comparison_file(cfg, comparison.comparison_id)
             _remove_report_dir(cfg, comparison.comparison_id)
         for clip in store.list_clip_metas(cfg, player_id):
-            store.delete_clip_files(cfg, clip)
+            # Serialize with create_comparison's clip locks so a clip can
+            # never be deleted while a comparison is being built from it.
+            with store.lock(cfg, clip.clip_id):
+                store.delete_clip_files(cfg, clip)
         store.delete_player_file(cfg, player_id)
 
 
@@ -240,6 +243,13 @@ def _upload_clip(
                 source=media_source,
                 created_at=datetime.now(timezone.utc),
             )
+            # The player/template may have been deleted mid-upload; re-check
+            # inside the clip lock so no orphaned clip metadata can commit.
+            try:
+                store.load_player(cfg, player_id)
+                store.load_template(cfg, template_id)
+            except FileNotFoundError as exc:
+                raise HTTPException(404, str(exc)) from exc
             store.save_clip_meta(cfg, meta)
             store.save_clip_pose(cfg, clip_id, sequence)
             return meta
@@ -385,40 +395,45 @@ def create_comparison(body: ComparisonCreate, cfg: Cfg) -> ComparisonState:
 
     idx_a = sample_frame_indices(clip_a.frame_count)
     idx_b = sample_frame_indices(clip_b.frame_count)
-    frames_a = _decode_samples(video_a, idx_a)
-    frames_b = _decode_samples(video_b, idx_b)
-    pairs = []
-    for ia, ib in zip(idx_a, idx_b):
-        if ia not in frames_a or ib not in frames_b:
-            continue
-        mask_a = person_mask(frames_a[ia].shape[:2], seq_a.frames[ia].keypoints)
-        mask_b = person_mask(frames_b[ib].shape[:2], seq_b.frames[ib].keypoints)
-        pairs.append(_match_pair(frames_a[ia], frames_b[ib], mask_a, mask_b))
-    camera = check_camera(pairs, cfg)
-    spatial = fit_affine(pairs, clip_a.width, clip_a.height) or AffineTransform()
-    offset_a, offset_b, confidence = suggest_offset_ms(seq_a, seq_b)
+    # Hold both clip locks (sorted to avoid ABBA) while computing and saving
+    # the comparison: delete_clip must not complete mid-creation and leave a
+    # comparison referencing a deleted clip.
+    with store.lock(cfg, min(baseline_id, comparison_id_clip)):
+        with store.lock(cfg, max(baseline_id, comparison_id_clip)):
+            frames_a = _decode_samples(video_a, idx_a)
+            frames_b = _decode_samples(video_b, idx_b)
+            pairs = []
+            for ia, ib in zip(idx_a, idx_b):
+                if ia not in frames_a or ib not in frames_b:
+                    continue
+                mask_a = person_mask(frames_a[ia].shape[:2], seq_a.frames[ia].keypoints)
+                mask_b = person_mask(frames_b[ib].shape[:2], seq_b.frames[ib].keypoints)
+                pairs.append(_match_pair(frames_a[ia], frames_b[ib], mask_a, mask_b))
+            camera = check_camera(pairs, cfg)
+            spatial = fit_affine(pairs, clip_a.width, clip_a.height) or AffineTransform()
+            offset_a, offset_b, confidence = suggest_offset_ms(seq_a, seq_b)
 
-    state = ComparisonState(
-        comparison_id=_new_id(),
-        player_id=player_id,
-        template_id=template_id,
-        baseline_clip_id=clip_a.clip_id,
-        comparison_clip_id=clip_b.clip_id,
-        spatial=spatial,
-        temporal={
-            "offset_ms_a": offset_a,
-            "offset_ms_b": offset_b,
-            "suggested_offset_ms_b": offset_b or None,
-            "suggestion_confidence": confidence,
-        },
-        phases_a=_default_phases(template.default_phases, clip_a.frame_count),
-        phases_b=_default_phases(template.default_phases, clip_b.frame_count),
-        markers=[],
-        camera_check=camera,
-        created_at=datetime.now(timezone.utc),
-    )
-    with store.lock(cfg, state.comparison_id):
-        store.save_comparison(cfg, state)
+            state = ComparisonState(
+                comparison_id=_new_id(),
+                player_id=player_id,
+                template_id=template_id,
+                baseline_clip_id=clip_a.clip_id,
+                comparison_clip_id=clip_b.clip_id,
+                spatial=spatial,
+                temporal={
+                    "offset_ms_a": offset_a,
+                    "offset_ms_b": offset_b,
+                    "suggested_offset_ms_b": offset_b or None,
+                    "suggestion_confidence": confidence,
+                },
+                phases_a=_default_phases(template.default_phases, clip_a.frame_count),
+                phases_b=_default_phases(template.default_phases, clip_b.frame_count),
+                markers=[],
+                camera_check=camera,
+                created_at=datetime.now(timezone.utc),
+            )
+            with store.lock(cfg, state.comparison_id):
+                store.save_comparison(cfg, state)
     return state
 
 

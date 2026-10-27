@@ -103,3 +103,11 @@ def test_band_boundary_is_perfect():
     assert inside.verdict == "perfect"
     outside = rate_release_timing(jump_sequence(), phases_for(2), perfect_band_ms=60)
     assert outside.verdict == "late"
+
+
+def test_non_realtime_sources_have_no_timing_verdict():
+    rating = rate_release_timing(jump_sequence(), phases_for(0), timing_mode="slow_motion")
+    assert rating.verdict is None and not rating.reliable
+    assert "real time" in (rating.reason or "")
+    unknown = rate_release_timing(jump_sequence(), phases_for(0), timing_mode="unknown")
+    assert unknown.verdict is None and not unknown.reliable

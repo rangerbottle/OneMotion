@@ -148,7 +148,9 @@ def _draw_skeleton(canvas, keypoints, color, affine: AffineTransform | None, wid
                 affine.scale * (np.cos(rad) * x - np.sin(rad) * y) + affine.tx,
                 affine.scale * (np.sin(rad) * x + np.cos(rad) * y) + affine.ty,
             )
-        return int(round(x)), int(round(y))
+        # Clamp before handing integers to OpenCV: out-of-frame points are
+        # invisible anyway, extreme values used to raise inside cv2.line.
+        return int(round(np.clip(x, -100_000, 100_000))), int(round(np.clip(y, -100_000, 100_000)))
 
     point_map = {kp.name: kp for kp in keypoints}
     for a, b in SKELETON_EDGES:

@@ -96,6 +96,8 @@ export default function Stage({
   speed,
   seekRequest,
   onTick,
+  onError,
+  onEnded,
 }: {
   mode: ViewMode;
   comparisonId: string;
@@ -109,6 +111,8 @@ export default function Stage({
   speed: number;
   seekRequest: { ms: number; nonce: number } | null;
   onTick: (msA: number, msB: number) => void;
+  onError: (message: string) => void;
+  onEnded: () => void;
 }) {
   const videoA = useRef<HTMLVideoElement>(null);
   const videoB = useRef<HTMLVideoElement>(null);
@@ -344,8 +348,12 @@ export default function Stage({
         ) : null}
       </div>
       {/* Always-mounted playback elements; canvases above read their frames. */}
-      <video ref={videoA} crossOrigin="anonymous" src={urlA} muted playsInline preload="auto" className="hidden" />
-      <video ref={videoB} crossOrigin="anonymous" src={urlB} muted playsInline preload="auto" className="hidden" />
+      <video ref={videoA} crossOrigin="anonymous" src={urlA} muted playsInline preload="auto" className="hidden"
+        onError={() => onError("Clip A video failed to load. The clip may have been deleted or the connection dropped.")}
+        onEnded={onEnded} />
+      <video ref={videoB} crossOrigin="anonymous" src={urlB} muted playsInline preload="auto" className="hidden"
+        onError={() => onError("Clip B video failed to load. The clip may have been deleted or the connection dropped.")}
+        onEnded={onEnded} />
     </div>
   );
 }

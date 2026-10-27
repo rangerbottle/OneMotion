@@ -172,7 +172,11 @@ def _create_analysis(
                     raise ValueError("clip exceeds 12 seconds — upload one shot only")
                 phases = segment(sequence)
                 sequence.ball_track = track_window(cfg, video_path, phases)
-                shot_rating = rate_release_timing(sequence, phases)
+                shot_rating = rate_release_timing(
+                    sequence,
+                    phases,
+                    timing_mode=(media_source.timing_mode if media_source else "realtime"),
+                )
                 player_metrics = compute_all(sequence, phases)
                 evidence = measurement_evidence(sequence, phases)
                 capture_quality = assess_capture(sequence, phases)

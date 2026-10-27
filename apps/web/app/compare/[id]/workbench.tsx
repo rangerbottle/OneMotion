@@ -18,6 +18,12 @@ function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
 }
 
+function isActivatable(target: EventTarget | null): boolean {
+  // Space/Enter on a focused button or link belongs to that control — the
+  // global playback shortcut must not steal it.
+  return target instanceof HTMLElement && (target.tagName === "BUTTON" || target.tagName === "A");
+}
+
 export default function Workbench({ comparisonId }: { comparisonId: string }) {
   // Route transitions may preserve client components. A comparison gets its
   // own transport/dialog state as well as its own controller/request queue.
@@ -39,6 +45,8 @@ function WorkbenchView({ comparisonId }: { comparisonId: string }) {
   const [alignDialog, setAlignDialog] = useState(false);
   const [reportDialog, setReportDialog] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [stageError, setStageError] = useState<string | null>(null);
+  const [stageNonce, setStageNonce] = useState(0);
 
   const durationMs = useMemo(() => data ? Math.max(1, Math.min(
     data.clipA.duration_ms - data.comparison.temporal.offset_ms_a,
@@ -66,8 +74,12 @@ function WorkbenchView({ comparisonId }: { comparisonId: string }) {
     if (!data) return;
     const msA = alignedMs + data.comparison.temporal.offset_ms_a;
     const frame = frameAt(data.poseA.frames, msA);
+    // crypto.randomUUID is secure-context only; LAN HTTP origins need a fallback.
+    const markerId = typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 16)
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     controller.patch({ markers: [...data.comparison.markers, {
-      marker_id: crypto.randomUUID().replace(/-/g, "").slice(0, 16),
+      marker_id: markerId,
       side: markerSide,
       frame: frame?.frame_idx ?? 0,
       // A manual alignment may begin inside a frame's presentation interval.
@@ -95,6 +107,7 @@ function WorkbenchView({ comparisonId }: { comparisonId: string }) {
         event.preventDefault();
         stepFrames((event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1));
       } else if (event.key === " ") {
+        if (isActivatable(event.target)) return;
         event.preventDefault();
         setPlaying((current) => !current);
       } else if (event.key === "m" || event.key === "M") {
@@ -159,9 +172,15 @@ function WorkbenchView({ comparisonId }: { comparisonId: string }) {
         </div> : null}
       </div>
       {deleteError ? <p role="alert" className="text-sm text-amber-600">{deleteError}</p> : null}
-      <Stage mode={viewMode} comparisonId={comparisonId} opacity={state.opacity_default} spatial={state.spatial}
+      {stageError ? <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 p-3 text-sm text-amber-600">
+        <p>{stageError}</p>
+        <button type="button" onClick={() => { setStageError(null); setPlaying(false); setStageNonce((n) => n + 1); }} className="rounded-full border px-3 py-1">Retry video</button>
+      </div> : null}
+      <Stage key={stageNonce} mode={viewMode} comparisonId={comparisonId} opacity={state.opacity_default} spatial={state.spatial}
         poseA={poseA} poseB={poseB} offsetMsA={state.temporal.offset_ms_a} offsetMsB={state.temporal.offset_ms_b}
         playing={playing} speed={speed} seekRequest={seekRequest} onTick={onTick}
+        onError={(message) => { setPlaying(false); setStageError(message); }}
+        onEnded={() => setPlaying(false)}
       />
       <WorkbenchTransport
         playing={playing} speed={speed} alignedMs={alignedMs} durationMs={durationMs} viewMode={viewMode}

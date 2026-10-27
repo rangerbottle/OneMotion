@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { apiUrl } from "@/lib/api";
 import type { AffineTransform, ComparisonPatch, ComparisonState, ReportRef } from "@/lib/compare-api";
 
@@ -8,12 +8,40 @@ function Dialog({ title, children, onClose, wide = false }: {
   title: string; children: ReactNode; onClose: () => void; wide?: boolean;
 }) {
   const titleId = useId();
+  const container = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = container.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLElement>("input, button, select, textarea, [tabindex='0']");
+    (first ?? el).focus();
+  }, []);
+  const onKey = (event: React.KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const el = container.current;
+    if (!el) return;
+    // Focus trap: keep Tab/Shift+Tab inside the dialog while it is modal.
+    const items = Array.from(
+      el.querySelectorAll<HTMLElement>("input, button, select, textarea, [tabindex='0']"),
+    ).filter((item) => !item.hasAttribute("disabled"));
+    if (!items.length) return;
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    event.preventDefault();
+    const next = items[(index + (event.shiftKey ? -1 : 1) + items.length) % items.length];
+    next.focus();
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--foreground)]/40 p-4" onClick={onClose}>
       <div
+        ref={container}
         role="dialog" aria-modal="true" aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}
+        onKeyDown={onKey}
         className={`max-h-[85vh] w-full overflow-y-auto rounded-2xl bg-[var(--surface)] p-5 shadow-xl ${wide ? "max-w-2xl" : "max-w-md"}`}
       >
         <div className="mb-3 flex items-center justify-between gap-3">

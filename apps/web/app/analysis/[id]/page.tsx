@@ -72,8 +72,18 @@ function ShotMeter({ rating }: { rating: ShotRating | null | undefined }) {
   if (!rating) return null;
   if (!rating.reliable || rating.verdict === null || rating.timing_delta_ms === null) {
     return (
-      <div className="rounded-xl border border-[var(--border)] px-5 py-4 text-sm text-[var(--muted)]">
-        Release timing unavailable{rating.reason ? `: ${rating.reason}` : " (insufficient evidence)"}
+      <div className="rounded-xl border border-[var(--border)] px-5 py-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wide text-[var(--muted)]">Release timing</span>
+          <span className="text-xs text-[var(--muted)]">Not rated</span>
+        </div>
+        {/* Greyed-out meter keeps the feature discoverable on unrated clips. */}
+        <div className="relative h-3 rounded-full bg-[var(--border)] opacity-60" aria-hidden="true">
+          <div className="absolute -top-1.5 left-1/2 h-6 w-1.5 -translate-x-1/2 rounded-full bg-[var(--muted)] opacity-40" />
+        </div>
+        <p className="mt-2 text-xs text-[var(--muted)]">
+          Release timing unavailable{rating.reason ? `: ${rating.reason}` : " (insufficient evidence)"}
+        </p>
       </div>
     );
   }

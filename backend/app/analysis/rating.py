@@ -54,8 +54,22 @@ def _hip_series(seq: ShotSequence, start: int, end: int) -> tuple[np.ndarray, np
 
 
 def rate_release_timing(
-    seq: ShotSequence, phases: list[PhaseSegment], perfect_band_ms: int = PERFECT_BAND_MS
+    seq: ShotSequence,
+    phases: list[PhaseSegment],
+    perfect_band_ms: int = PERFECT_BAND_MS,
+    timing_mode: str = "realtime",
 ) -> ShotRating:
+    if timing_mode != "realtime":
+        # The millisecond band is only meaningful on verified real-time
+        # footage; a slowed clip would turn a 40 ms perfect release into a
+        # 160 ms "late" verdict.
+        return ShotRating(
+            verdict=None,
+            timing_delta_ms=None,
+            confidence=0.0,
+            reliable=False,
+            reason="playback speed is not verified as real time; release timing cannot be judged",
+        )
     release_phase = phase_of(phases, "release")
     dip = phase_of(phases, "dip")
     load = phase_of(phases, "load")
